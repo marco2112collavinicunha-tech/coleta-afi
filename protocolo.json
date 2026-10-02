@@ -1,0 +1,99 @@
+{
+ "coleta": {
+  "blocos_de_consistencia": {},
+  "dividir_consistencia": true,
+  "frase_sobre_pictogramas": false,
+  "palavra_sob_pictograma": false,
+  "ritmo": {
+   "folga_apos_modelo_ms": "[A DEFINIR PELAS FONOAUDIÓLOGAS]",
+   "intervalo_ate_proxima_frase_ms": "[A DEFINIR PELAS FONOAUDIÓLOGAS]"
+  },
+  "semente_do_sorteio": "afi-2026",
+  "sessao_por_dia": "recusa",
+  "sessoes": [
+   {
+    "conjunto": "treino",
+    "numero": 1,
+    "repeticoes": 4
+   },
+   {
+    "conjunto": "treino",
+    "numero": 2,
+    "repeticoes": 4
+   },
+   {
+    "conjunto": "consistencia",
+    "numero": 3,
+    "repeticoes": 12
+   },
+   {
+    "conjunto": "consistencia",
+    "numero": 4,
+    "repeticoes": 12
+   },
+   {
+    "conjunto": "teste",
+    "numero": 5,
+    "repeticoes": 3
+   },
+   {
+    "conjunto": "teste",
+    "numero": 6,
+    "repeticoes": 3
+   }
+  ]
+ },
+ "frases_alvo": {
+  "deixa_eu_fazer": "deixa eu fazer",
+  "espera_um_pouco": "espera um pouco",
+  "estou_com_dor": "estou com dor",
+  "eu_consigo": "eu consigo",
+  "eu_nao_gosto": "eu não gosto",
+  "me_ajuda": "me ajuda",
+  "nao_estou_bem": "não estou bem",
+  "nao_quero": "não quero",
+  "posso_ir_junto": "posso ir junto",
+  "preciso_descansar": "preciso descansar",
+  "vamos_conversar": "vamos conversar",
+  "vem_aqui": "vem aqui"
+ },
+ "palavras_dos_pictogramas": {},
+ "pictogramas": {
+  "deixa_eu_fazer": [
+   "🚧"
+  ],
+  "espera_um_pouco": [
+   "🚧"
+  ],
+  "estou_com_dor": [
+   "🚧"
+  ],
+  "eu_consigo": [
+   "🚧"
+  ],
+  "eu_nao_gosto": [
+   "🚧"
+  ],
+  "me_ajuda": [
+   "🚧"
+  ],
+  "nao_estou_bem": [
+   "🚧"
+  ],
+  "nao_quero": [
+   "🚧"
+  ],
+  "posso_ir_junto": [
+   "🚧"
+  ],
+  "preciso_descansar": [
+   "🚧"
+  ],
+  "vamos_conversar": [
+   "🚧"
+  ],
+  "vem_aqui": [
+   "🚧"
+  ]
+ }
+}

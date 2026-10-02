@@ -1,0 +1,73 @@
+{
+ "fonte": "ARASAAC — https://arasaac.org",
+ "autor_dos_pictogramas": "Sergio Palao",
+ "propriedade": "Diputación General de Aragón",
+ "deposito_legal": "Z 901-2013",
+ "licenca": "CC BY-NC-SA",
+ "atribuicao_obrigatoria": true,
+ "atribuicao_exige": [
+  "autor: Sergio Palao",
+  "procedencia: ARASAAC",
+  "licenca: Creative Commons"
+ ],
+ "termos_verificados_em": "2026-09-22",
+ "fontes_dos_termos": [
+  "https://aulaabierta.arasaac.org/condiciones-de-uso",
+  "http://blog.arasaac.org/p/condiciones-de-uso_19.html"
+ ],
+ "estado_da_verificacao_dos_termos": "VERIFICADO — ver docs/licencas/ARASAAC.md",
+ "estatuto": "PROVISORIO. Os pictogramas 36480 e 2367 foram baixados para uma sequencia candidata de estou_com_dor, uma das doze frases, que hoje usa marcador provisorio (sequencia nao validada); os outros tres, para rotulos de engenharia fora de uso (campo usado_por). Quais pictogramas representam quais frases depende da escolha do pesquisador responsavel.",
+ "pictogramas": [
+  {
+   "id": 2367,
+   "arquivo": "2367.png",
+   "url_de_origem": "https://static.arasaac.org/pictograms/2367/2367_500.png",
+   "sha256": "7fea009fb44234daff77d3310116684257d85974a47215889e816cb9e3c22b3f",
+   "bytes": 20571,
+   "usado_por": [
+    "estou_com_dor"
+   ]
+  },
+  {
+   "id": 5441,
+   "arquivo": "5441.png",
+   "url_de_origem": "https://static.arasaac.org/pictograms/5441/5441_500.png",
+   "sha256": "8f2083fa7a4dd65aa8c4e12d56aa20b8966d62ba3ea3f293fee2b6745788714f",
+   "bytes": 13618,
+   "usado_por": [
+    "quero_agua",
+    "quero_pausa"
+   ]
+  },
+  {
+   "id": 16643,
+   "arquivo": "16643.png",
+   "url_de_origem": "https://static.arasaac.org/pictograms/16643/16643_500.png",
+   "sha256": "0f219c6d7c1e454bd5740c9bea7042ab485d6e4059ca30dd7c844b188097c1eb",
+   "bytes": 26599,
+   "usado_por": [
+    "quero_pausa"
+   ]
+  },
+  {
+   "id": 32464,
+   "arquivo": "32464.png",
+   "url_de_origem": "https://static.arasaac.org/pictograms/32464/32464_500.png",
+   "sha256": "b91cb949e355825afe0d1a59d81ec85fae22b0fcf1b12b7505947a766f5041ae",
+   "bytes": 12581,
+   "usado_por": [
+    "quero_agua"
+   ]
+  },
+  {
+   "id": 36480,
+   "arquivo": "36480.png",
+   "url_de_origem": "https://static.arasaac.org/pictograms/36480/36480_500.png",
+   "sha256": "ed7c6e3661251aaba05b5650f9a3c2c17f488cb4d41aae396ce30389d5815a22",
+   "bytes": 12680,
+   "usado_por": [
+    "estou_com_dor"
+   ]
+  }
+ ]
+}

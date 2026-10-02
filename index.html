@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Gravação — estudo AFI</title>
+<!--
+  Página de coleta: mostra os pictogramas de cada frase, grava pela Web Audio API
+  (nunca por MediaRecorder) e envia cada gravação ao endereço de envio informado no
+  link. A agenda é guiada: a página diz à família qual é a próxima gravação.
+
+  Uma tela, dois leitores: o topo é do adolescente (só pictogramas, sem texto; ele
+  ouve a frase-modelo e a repete, e frase escrita viraria leitura); o rodapé é da
+  família (onde está, o que fazer, o botão).
+
+  Não existe botão de avançar. O avanço é consequência do salvamento confirmado; um
+  botão de avançar deixaria passar sem o arquivo chegar.
+
+  As condições da gravação são perguntadas em dois momentos. Aparelho, cômodo,
+  posição do aparelho e "algo diferente hoje" são perguntados uma vez por sessão,
+  antes da primeira gravação dela: descrevem o canal e o dia, que já são conhecidos
+  antes de gravar. Barulho ou interrupção só é perguntado depois de cada gravação,
+  numa marca opcional: (1) antes de gravar a família ainda não sabe se houve ruído
+  ou intercorrência, e a pergunta chegaria antes do fato que ela descreve; (2)
+  perguntar antes induz: quem acabou de responder "não" fica menos propenso a
+  admitir que houve, e o dado que sobra tem aparência de informação sem ser.
+
+  O áudio fica na memória até a confirmação: nada é escrito no aparelho da família.
+  Se a aba fechar antes de confirmar, perde-se uma gravação; é um custo aceito.
+-->
+<style>
+  :root { --tinta:#16181d; --papel:#fbfbfd; --linha:#d8dae0; --acao:#1f6feb; --alerta:#b42318; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+         color:var(--tinta); background:var(--papel);
+         display:flex; flex-direction:column; min-height:100dvh; }
+  /* topo — do adolescente */
+  /* A figura é a tarefa e tem de ocupar a tela: os pictogramas dividem a largura
+     disponível e só param de crescer no limite da altura. */
+  #palco { flex:1; display:flex; align-items:center; justify-content:center;
+           gap:clamp(6px,2vw,20px); flex-wrap:wrap; padding:clamp(6px,2vw,20px); }
+  .picto { flex:1 1 0; min-width:110px; max-width:min(52vh, 460px);
+           aspect-ratio:1; border:2px solid var(--linha);
+           border-radius:16px; background:#fff; display:flex; align-items:center;
+           justify-content:center; font-size:clamp(48px,16vw,140px); overflow:hidden; }
+  .picto img { width:100%; height:100%; object-fit:contain; padding:6%; }
+  /* rodapé — da família */
+  /* A faixa branca vai de ponta a ponta; o conteúdo fica numa coluna de até 560px,
+     centralizada, para os campos e botões não esticarem no computador. No celular
+     nada muda. */
+  #painel { border-top:1px solid var(--linha); background:#fff;
+            padding-block:16px calc(16px + env(safe-area-inset-bottom));
+            padding-inline:max(clamp(12px,4vw,32px), calc((100% - 560px) / 2)); }
+  #posicao { font-size:14px; color:#5b6070; }
+  #instrucao { font-weight:600; margin:6px 0 12px; }
+  button { font:inherit; font-weight:600; padding:14px 20px; border-radius:12px;
+           border:1px solid var(--linha); background:#fff; min-height:52px; }
+  #principal { background:var(--acao); color:#fff; border-color:var(--acao); width:100%; }
+  #principal[disabled] { opacity:.5; }
+  .secundarios { display:flex; gap:8px; margin-top:8px; }
+  .secundarios button { flex:1; font-weight:500; font-size:15px; padding:12px 10px; }
+  #enviar { width:100%; background:var(--acao); color:#fff; border-color:var(--acao); }
+  #enviar[disabled] { opacity:.5; }
+  #aviso { margin-top:10px; font-size:14px; }
+  #regra_do_bloco { margin:10px 0 0; font-size:13px; color:#5b6070; }
+  /* Em tela cheia, o aviso é a página: aviso de erro ou de fim no rodapé, embaixo
+     de um palco vazio, parece tela em branco, e a família acha que travou. */
+  body.tela-cheia #palco { display:none !important; }
+  body.tela-cheia #painel { flex:1; display:flex; flex-direction:column;
+     justify-content:center; border-top:0; }
+  body.tela-cheia #posicao { text-align:center; }
+  body.tela-cheia #instrucao { font-size:20px; line-height:1.45; text-align:center;
+     margin:8px 0 18px; font-weight:600; }
+  body.tela-cheia #aviso { text-align:center; }
+  body.tela-cheia #creditos { text-align:center; }
+  /* A atribuição ARASAAC é obrigatória pela licença e precisa ficar visível, mas
+     ela não é a tarefa: nota de rodapé, não manchete. */
+  #creditos { margin:14px 0 0; font-size:11px; line-height:1.35; color:#8a8f9c; }
+  #creditos strong { font-weight:500; color:#8a8f9c; }
+  #ver_frase { background:none; border:0; padding:6px 0; font-size:14px;
+     font-weight:500; color:#5b6070; text-decoration:underline; width:auto; }
+  #aviso.erro { color:var(--alerta); font-weight:600; }
+  .oculto { display:none !important; }
+  fieldset { border:1px solid var(--linha); border-radius:12px; margin:12px 0 0; }
+  legend { font-size:13px; color:#5b6070; }
+  /* Rótulo e caixa empilhados, com a caixa na largura toda: na mesma linha, o
+     texto seria cortado no celular. */
+  fieldset label { display:block; font-size:15px; margin:0 0 4px; }
+  fieldset input[type="text"] { display:block; width:100%; margin:4px 0 14px;
+     padding:12px 14px; font:inherit; font-size:16px; border:1px solid var(--linha);
+     border-radius:10px; background:#fff; }
+  fieldset input[type="text"]:focus { outline:2px solid var(--acao); outline-offset:1px; }
+  fieldset > div:last-of-type input[type="text"] { margin-bottom:8px; }
+  #sessao_campos button { width:100%; }
+  label { display:inline-flex; gap:6px; align-items:center; margin-right:16px; }
+  /* botão desativado precisa parecer desativado */
+  button:disabled { opacity:.5; cursor:default; }
+</style>
+</head>
+<body>
+
+<main id="palco" aria-live="polite"><!-- pictogramas entram aqui --></main>
+
+<section id="painel">
+  <div id="posicao">carregando…</div>
+  <div id="instrucao">—</div>
+
+  <!--
+    Quatro perguntas uma vez por sessão, e um botão opcional por gravação. Duas
+    perguntas obrigatórias por gravação dariam, com 264 gravações por participante,
+    528 respostas (88 por sessão, além de gravar); uma vez por sessão, são 24.
+
+    Custo declarado: intercorrência pontual, a que acontece numa gravação só,
+    depende de a família tocar o botão. Quem não toca fica como "não marcado", e
+    ausência de marca não é negação.
+  -->
+  <fieldset id="sessao_campos" class="oculto">
+    <legend>Uma vez por sessão</legend>
+    <div><label>Em que aparelho?
+      <input type="text" id="aparelho" maxlength="60"
+             placeholder="ex.: celular da mãe" autocomplete="off"></label></div>
+    <div><label>Em que cômodo?
+      <input type="text" id="comodo" maxlength="60"
+             placeholder="ex.: quarto, sala" autocomplete="off"></label></div>
+    <div><label>Onde o celular fica?
+      <input type="text" id="posicao_aparelho" maxlength="60"
+             placeholder="ex.: apoiado na mesa" autocomplete="off"></label></div>
+    <div><label>Algo diferente hoje?
+      <input type="text" id="diferente" maxlength="120"
+             placeholder="ex.: resfriado — ou em branco"
+             autocomplete="off"></label></div>
+    <button id="comecar_sessao">Começar a sessão</button>
+  </fieldset>
+
+  <fieldset id="condicoes" class="oculto">
+    <legend>Sobre a gravação que você acabou de fazer</legend>
+    <!--
+      Opcional: a família toca se houve algo. Não trava o envio; travar voltaria
+      a exigir respostas a cada gravação.
+    -->
+    <div><label><input type="checkbox" id="teve_barulho">
+      Teve barulho ou interrupção nesta gravação</label></div>
+  </fieldset>
+
+  <!-- "Ouvir e gravar": o toque toca a frase-modelo e a gravação começa quando
+       ela termina. Texto da página ainda sujeito a revisão clínica e ética.
+       Começa oculto: antes de a agenda carregar não há posição a gravar, e a
+       agenda o mostra depois das perguntas da sessão. -->
+  <button id="principal" class="oculto">Ouvir e gravar</button>
+  <!-- Enviar é a ação principal e a mais comum da sessão; as outras duas ficam
+       secundárias, embaixo, para que um toque errado não descarte uma gravação boa. -->
+  <div class="oculto" id="apos">
+    <button id="enviar">Está bom, enviar</button>
+    <div class="secundarios">
+      <button id="ouvir">Ouvir</button>
+      <button id="regravar">Gravar de novo</button>
+    </div>
+  </div>
+  <div id="aviso"></div>
+  <!--
+    A única regra de conduta que a família precisa saber. Fica visível o tempo
+    todo, não num tutorial que ninguém reabre. Não há tarefa de anotação: a
+    família só grava.
+  -->
+  <!--
+    O adolescente pode parar a qualquer momento. Bloco com 6 ou mais repetições
+    vale; com menos, é refeito em outro dia, nunca no mesmo. Pausa entre blocos e
+    teto da sessão ainda não estão definidos: o marcador abaixo é proposital e não
+    pode ir para família real antes de ser trocado pelo valor definido.
+    A agenda ainda não faz o "outro dia": ao reabrir, ela continua o mesmo bloco
+    (src/agenda.py, `pendentes`). Ver a docstring de
+    `blocos_de_consistencia_incompletos`.
+  -->
+  <p id="regra_do_bloco" class="oculto">Ele pode parar quando quiser — o que já foi gravado fica guardado. Se parar logo no começo de uma frase, ela é refeita em outro dia, nunca no mesmo. Pausa entre os blocos de repetição e tempo máximo de cada sessão: [A DEFINIR PELAS FONOAUDIÓLOGAS].</p>
+
+  <!-- Não há palavra embaixo do pictograma: com a palavra escrita, a tarefa vira
+       leitura em voz alta em vez de repetição da frase-modelo, e a família
+       tende a ler a frase em voz alta, o que daria um segundo modelo.
+       No lugar, este botão deixa a família conferir o alvo antes de virar a
+       tela. Ele some quando a gravação começa e não volta durante ela. -->
+  <!-- O lugar do botão fica reservado enquanto ele está oculto, para o painel
+       não encolher e o botão Gravar/Parar não descer sob o dedo. -->
+  <div id="lugar_da_frase"><button id="ver_frase" type="button" class="oculto">ver a frase</button></div>
+  <div id="frase_revelada" class="oculto"></div>
+
+  <!-- Atribuição obrigatória (CC BY-NC-SA). É condição da licença, e só sai da
+       página se os pictogramas saírem. -->
+  <div id="creditos">
+    Pictogramas: <strong>ARASAAC</strong> · autor <strong>Sergio Palao</strong> ·
+    propriedade da <strong>Diputación General de Aragón</strong> ·
+    Depósito Legal <strong>Z 901-2013</strong> ·
+    licença <strong>CC BY-NC-SA</strong> · arasaac.org
+  </div>
+</section>
+
+<script type="module">
+import { abrirMicrofone, gravador, gravadorComPreRolagem, escreverWav, paraBase64,
+         montarEnvio, enviarGravacao,
+         iniciarTomada, encerrarTomada, tocarModelo, fecharMicrofone,
+         FalhaDoModelo, enderecoDoModelo, ritmoDaSessao,
+         pararComCauda, CAUDA_MS, medirSaturacao, TETO_DE_AMOSTRA,
+         medirAmbienteDaSessao, fichaDeFalha,
+         AVISO_RUIDO_ALTO, AVISO_ENTRADA_BLUETOOTH,
+         destravarModelo, chaveDoContador, armazemDoNavegador,
+         lerContador, guardarContador, apagarContador,
+         MOTIVO_SEM_FALHA_VISTA, consultarAgenda } from "./captura.js";
+import { motivosDaTrava, ehEngenharia } from "./trava_de_participante.js";
+import { resumoNaPagina, dataLocal, dataParaAFamilia } from "./agenda.js";
+
+// Modelo pré-gravado ligado: o texto da página diz que o celular fala a frase, e a
+// página só pode dizer isso se o fizer. Texto e modelo ainda sujeitos a revisão
+// clínica e ética antes da primeira família. Nada é gravado nem sintetizado aqui;
+// ver captura.js, seção do modelo pré-gravado.
+const MODELO_PRE_GRAVADO = true;
+// Cauda depois de Parar (captura.js, `pararComCauda`): a gravação continua
+// CAUDA_MS depois do toque, com "Gravando…" na tela, e a cauda efetiva vai no
+// envio. Desligada: o valor da cauda ainda não foi escolhido. Enquanto
+// desligada, fala cortada no fim continua possível e a página não protege
+// contra ela.
+const CAUDA_APOS_PARAR = false;
+// Saturação (captura.js, `medirSaturacao`): pico e fração das amostras no teto
+// medidos em cada gravação e enviados; com o pico no teto, aviso não bloqueante
+// à família. Desligada: o texto do aviso passa pelas fonoaudiólogas antes.
+const SATURACAO_NA_PAGINA = false;
+const AVISO_DE_SATURACAO =
+  "O som ficou alto demais. Afaste um pouco o celular.";   // texto às fonoaudiólogas
+// Ambiente da sessão (captura.js, `medirAmbienteDaSessao`): na abertura de cada
+// sessão, SILENCIO_DE_ABERTURA_MS de silêncio gravados para medir o ruído de
+// fundo, as configurações aplicadas ao microfone e a classe da entrada (Bluetooth
+// ou não), numa ficha que vai em todos os envios da sessão. Os avisos não
+// bloqueiam: a sessão abre com ou sem eles, e nada disso exclui participante.
+// Desligada: a instrução do silêncio e os dois avisos passam pelas
+// fonoaudiólogas, e medir antes de gravar muda o procedimento com participante.
+const AMBIENTE_NA_SESSAO = false;
+// [PENDENTE: fonoaudiólogas] os três textos abaixo
+const INSTRUCAO_DO_SILENCIO =
+  "Antes de começar, fiquem em silêncio por 3 segundos enquanto o celular escuta o lugar.";
+const TEXTOS_DOS_AVISOS_DO_AMBIENTE = {
+  [AVISO_RUIDO_ALTO]:
+    "O lugar parece ter barulho. Se der, procure um cômodo mais quieto. Pode continuar.",
+  [AVISO_ENTRADA_BLUETOOTH]:
+    "Parece que há um fone sem fio ligado. Se der, desligue o fone e use o microfone " +
+    "do celular. Pode continuar.",
+};
+// Endereço da pasta da voz-modelo definitiva (um `<rotulo>.wav` por frase).
+// Vazio de propósito: a voz definitiva ainda não existe, e a origem dela depende
+// da escolha do pesquisador responsável e, por mexer em procedimento com
+// participante, da pesquisadora responsável pela ética. Enquanto vazio, a trava de participante real recusa
+// ("voz-modelo definitiva pendente"), e só a bancada ENG### grava.
+const ENDERECO_DOS_MODELOS = "";
+// Voz sintética provisória, só para ENG###. Gerada localmente por
+// `scripts/gerar_voz_modelo_provisoria.py`, fora do repositório, e servida pelo
+// servidor local; o nome de cada arquivo diz que ela é provisória.
+const PASTA_DA_VOZ_PROVISORIA = "voz_modelo_provisoria";
+const SUFIXO_DA_VOZ_PROVISORIA = "__VOZ_SINTETICA_PROVISORIA";
+// Em constante para a trava de participante real enxergá-la. É o trecho do texto
+// da página, aprovado como proposta, que descreve o que acontece enquanto o modelo
+// toca; ainda sujeito a revisão clínica e ética.
+const INSTRUCAO_DO_MODELO = "O celular fala a frase e, quando terminar, começa a gravar.";
+
+// Textos da página, ainda sujeitos a revisão clínica e ética antes da primeira
+// família. O de antes de gravar pede repetição da frase ouvida, não nomeação das
+// figuras (outra tarefa); o de depois pede só conferir se gravou, sem convidar a
+// julgar a fala.
+const INSTRUCAO_ANTES_DE_GRAVAR =
+  "Toque em Ouvir e gravar. O celular fala a frase e, quando terminar, começa a gravar. " +
+  "Ele repete a frase do jeito dele. Toque em Parar quando ele terminar.";
+const INSTRUCAO_DEPOIS_DE_GRAVAR =
+  "Ouça para conferir se gravou. Grave de novo só se algo atrapalhou: barulho forte, " +
+  "interrupção ou falha do celular. Nunca por causa de como ele falou.";
+const ROTULO_DO_BOTAO = "Ouvir e gravar";
+
+// Qual voz toca. ENG### ouve a voz sintética provisória (`<rotulo>__VOZ_SINTETICA_
+// PROVISORIA.wav`); qualquer outro código, a definitiva de `ENDERECO_DOS_MODELOS`,
+// que está vazia, e por isso a trava de participante real já recusou antes de chegar
+// aqui. Sem arquivo, `tocarModelo("")` recusa: a página nunca grava sem o modelo tocar.
+function enderecoDaFraseModelo(rotulo) {
+  if (ehEngenharia(PESSOA)) {
+    return enderecoDoModelo(PASTA_DA_VOZ_PROVISORIA,
+                            rotulo ? rotulo + SUFIXO_DA_VOZ_PROVISORIA : "");
+  }
+  return enderecoDoModelo(ENDERECO_DOS_MODELOS, rotulo);
+}
+
+const parametros = new URLSearchParams(location.search);
+const PESSOA = parametros.get("p") || "";
+// O receptor (Apps Script gravando no Drive institucional, ou o servidor local). O
+// mesmo endereço serve para enviar (POST) e para perguntar o que já chegou (GET): a
+// página calcula a agenda sozinha e não depende de servidor de agenda.
+// Sem `?envio=`, a página não grava: é melhor recusar do que mandar áudio de
+// adolescente para um destino não configurado.
+const ENVIO = parametros.get("envio") || "";
+const SEGREDO = parametros.get("s") || "";
+
+const palco = document.getElementById("palco");
+const posicaoEl = document.getElementById("posicao");
+const instrucaoEl = document.getElementById("instrucao");
+const principal = document.getElementById("principal");
+const apos = document.getElementById("apos");
+const condicoes = document.getElementById("condicoes");
+const avisoEl = document.getElementById("aviso");
+
+let atual = null, resumo = null, audio = null, taxa = null, preRolagem = null;
+let microfone = null, gravando = null;
+
+function aviso(texto, erro = false) {
+  avisoEl.textContent = texto || "";
+  avisoEl.className = erro ? "erro" : "";
+}
+
+// Sem figura substituta: sem sequência de pictogramas, a página recusa gravar e
+// diz que falta configuração. Uma moldura genérica faria o sistema parecer inteiro
+// (a página funciona, o áudio chega) sem que o estímulo exista. Gravar sem estímulo
+// produz áudio que parece dado e não é: o adolescente não foi elicitado a dizer
+// coisa nenhuma.
+function desenharPictogramas(posicao) {
+  palco.innerHTML = "";
+  const simbolos = posicao && posicao.pictogramas;
+  if (!Array.isArray(simbolos) || simbolos.length === 0) {
+    return false;
+  }
+  for (const s of simbolos) {
+    const caixa = document.createElement("div");
+    caixa.className = "picto";
+    if (/^\d+$/.test(String(s))) {
+      // Identificador ARASAAC: imagem local, servida do repositório.
+      //
+      // Nunca da CDN em tempo de gravação: a família pode estar com sinal ruim,
+      // e um estímulo que falha de carregar produz uma gravação sem estímulo,
+      // com aparência de dado.
+      const img = document.createElement("img");
+      img.src = `pictogramas/${s}.png`;
+      // O `alt` fica vazio de propósito: texto alternativo com a palavra
+      // apareceria se a imagem falhasse, e a tarefa viraria leitura.
+      img.alt = "";
+      // Se a imagem não carregar, a página recusa, pela mesma regra.
+      img.addEventListener("error", () => faltaConfiguracao(posicao.rotulo, s));
+      caixa.appendChild(img);
+    } else {
+      // Emoji: só para ensaio, enquanto houver frase sem identificador ARASAAC.
+      caixa.textContent = s;
+    }
+    palco.appendChild(caixa);
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// "Ver a frase": o alvo é da família e nunca aparece enquanto grava
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A frase não fica escrita embaixo do pictograma, por duas razões:
+//   · com a palavra escrita, a tarefa vira leitura em voz alta em vez de
+//     repetição da frase-modelo;
+//   · a família tende a ler a frase em voz alta, e isso daria um segundo
+//     modelo, com o familiar falando durante a gravação.
+// O botão existe para a família conferir o alvo antes de virar a tela.
+const verFraseEl = document.getElementById("ver_frase");
+const fraseReveladaEl = document.getElementById("frase_revelada");
+
+function esconderFrase() {
+  fraseReveladaEl.classList.add("oculto");
+  fraseReveladaEl.textContent = "";
+}
+
+// Durante a gravação o botão some e a frase não volta: visível, ele permitiria
+// revelar o alvo com o microfone aberto.
+function travarFraseDuranteGravacao() {
+  esconderFrase();
+  // segura a altura que o botão ocupava, para Gravar/Parar não pular sob o dedo
+  const lugar = document.getElementById("lugar_da_frase");
+  lugar.style.minHeight = lugar.offsetHeight + "px";
+  verFraseEl.classList.add("oculto");
+}
+
+function liberarBotaoDaFrase(posicao) {
+  esconderFrase();
+  document.getElementById("lugar_da_frase").style.minHeight = "";
+  // Só aparece quando há uma gravação a fazer; não na tela das quatro perguntas,
+  // antes de a sessão existir.
+  if (posicao && posicao.frase && condicoesDaSessao) {
+    verFraseEl.classList.remove("oculto");
+  } else {
+    verFraseEl.classList.add("oculto");
+  }
+}
+
+verFraseEl.addEventListener("click", () => {
+  if (gravando) { return; }          // trava dupla, também contra corrida
+  if (!fraseReveladaEl.classList.contains("oculto")) {
+    esconderFrase();
+    return;
+  }
+  fraseReveladaEl.textContent = (atual && atual.frase) || "";
+  fraseReveladaEl.classList.remove("oculto");
+});
+
+// Um desenho só para toda tela em que não há nada a gravar: fim, erro, pausa.
+function telaCheia(posicao, texto) {
+  document.body.classList.add("tela-cheia");
+  palco.innerHTML = "";
+  posicaoEl.textContent = posicao || "";
+  instrucaoEl.textContent = texto;
+  principal.classList.add("oculto");
+  apos.classList.add("oculto");
+  condicoes.classList.add("oculto");
+  const campos = document.getElementById("sessao_campos");
+  if (campos) { campos.classList.add("oculto"); }
+  const regra = document.getElementById("regra_do_bloco");
+  if (regra) { regra.classList.add("oculto"); }
+  if (typeof verFraseEl !== "undefined" && verFraseEl) { verFraseEl.classList.add("oculto"); }
+}
+
+// Tela de configuração faltando. O texto é para a família: ela não errou nada, e
+// não há o que ela possa fazer; quem conserta é quem enviou o link.
+function faltaConfiguracao(rotulo, pictograma) {
+  document.body.classList.add("tela-cheia");
+  palco.innerHTML = "";
+  posicaoEl.textContent = "";
+  instrucaoEl.textContent =
+    "Não consigo mostrar as figuras desta frase, então não dá para gravar agora. " +
+    "Não é nada que você tenha feito — falta uma configuração do nosso lado. " +
+    "Avise quem te enviou o link.";
+  principal.classList.add("oculto");
+  apos.classList.add("oculto");
+  condicoes.classList.add("oculto");
+  const campos = document.getElementById("sessao_campos");
+  if (campos) { campos.classList.add("oculto"); }
+  if (typeof verFraseEl !== "undefined" && verFraseEl) {
+    verFraseEl.classList.add("oculto");
+  }
+  // O diagnóstico técnico (nome de script, rótulo da frase) vai para o console, não
+  // para a tela da família, que já tem a instrução acima dizendo o que fazer.
+  console.error(pictograma
+    ? "A imagem do pictograma " + pictograma + " não carregou. Rode "
+      + "`scripts/baixar_pictogramas_arasaac.py --baixar`."
+    : "Falta a sequência de pictogramas da frase " + (rotulo || "") + ".");
+  aviso("");
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// A agenda é calculada aqui
+// ═══════════════════════════════════════════════════════════════════════
+// O protocolo vem do `protocolo.json` ao lado da página; o que já chegou vem do
+// receptor, pelo GET no endereço de envio (`doGet` do Apps Script, ou `GET /gravacao`
+// do servidor local, com o mesmo contrato). `agenda.js` faz a conta.
+class ErroDoReceptor extends Error {}
+
+let protocoloLido = null;
+async function lerProtocolo() {
+  if (protocoloLido) return protocoloLido;
+  const r = await fetch("protocolo.json", { cache: "no-store" });
+  if (!r.ok) throw new Error("protocolo.json não carregou (" + r.status + ")");
+  protocoloLido = await r.json();
+  return protocoloLido;
+}
+
+async function perguntarAoReceptor() {
+  const url = new URL(ENVIO, location.href);
+  url.searchParams.set("pessoa", PESSOA);
+  url.searchParams.set("segredo", SEGREDO);
+  const { ok, corpo } = await consultarAgenda(url.href);
+  if (!ok || !corpo || corpo.erro || !Array.isArray(corpo.recebidas)) {
+    // a mensagem do receptor é escrita para a família ("Link inválido. Peça o link novo…")
+    throw new ErroDoReceptor((corpo && corpo.erro) || "o receptor não respondeu");
+  }
+  return corpo;
+}
+
+// `hoje` é o dia local do aparelho da família; a data de cada gravação que o
+// receptor guardou é lida no mesmo fuso (agenda.js, `dataLocal`).
+async function calcularResumo() {
+  const [protocolo, retorno] = await Promise.all([lerProtocolo(), perguntarAoReceptor()]);
+  return resumoNaPagina(protocolo, PESSOA, retorno, dataLocal(new Date()));
+}
+
+async function carregarAgenda() {
+  resumo = await calcularResumo();
+  atual = resumo.proxima;
+  // o contador de tentativas da posição que aparece, recuperado do navegador
+  retomarContador(atual);
+  // Sessão nova, perguntas de novo, com os campos vazios. Com a página aberta de um
+  // dia para o outro, a sessão seguinte herdaria da memória as respostas da
+  // anterior: aparelho e cômodo de ontem carimbados na gravação de hoje.
+  if (condicoesDaSessao && (!atual || atual.sessao !== sessaoDasCondicoes)) {
+    condicoesDaSessao = null;
+    sessaoDasCondicoes = null;
+    ambienteDaSessao = null;
+    for (const id of ["aparelho", "comodo", "posicao_aparelho", "diferente"]) {
+      document.getElementById(id).value = "";
+    }
+  }
+  if (resumo.concluida) {
+    // Aqui terminou o estudo inteiro, não só a sessão.
+    telaCheia(`${resumo.concluidas} de ${resumo.total} gravações`,
+      "Pronto! Todas as gravações foram feitas. Muito obrigado por participar.");
+    return;
+  }
+  // Uma sessão por dia, sem exceção: a página recusa a próxima sessão no mesmo dia
+  // da anterior e mostra a data sugerida. A separação por dias é o motivo de
+  // existirem seis sessões: é ela que impede o sistema de aprender "a voz daquele dia".
+  // A mensagem é amigável de propósito: a família não errou nada.
+  // A data sugerida é o mínimo que a regra permite (o dia seguinte), não um
+  // intervalo clínico entre sessões, que ainda não está definido e depende da
+  // escolha do pesquisador responsável.
+  if (resumo.outra_sessao_hoje) {
+    telaCheia(`${resumo.concluidas} de ${resumo.total} gravações`,
+      "Por hoje é só. As gravações são feitas em dias diferentes de propósito: " +
+      "é isso que faz o resultado valer. A próxima sessão pode ser feita a partir " +
+      `de amanhã, ${dataParaAFamilia(resumo.data_sugerida)}. Obrigado!`);
+    return;
+  }
+
+  // A recusa vem antes de tudo: sem sequência, não se desenha, não se pergunta
+  // condição e não se grava.
+  if (!desenharPictogramas(atual)) {
+    faltaConfiguracao(atual && atual.rotulo);
+    return;
+  }
+  // Fora da gravação, a família pode conferir o alvo.
+  liberarBotaoDaFrase(atual);
+  posicaoEl.textContent =
+    // Sem o rótulo da frase: o alvo em texto, na tela que o adolescente vê, faria
+    // a tarefa virar leitura, e a página inteira é desenhada sem texto para evitar
+    // isso. O alvo fica disponível para a família no botão "ver a frase".
+    `Sessão ${atual.sessao} · faltam ${resumo.faltam} de ${resumo.total} gravações`;
+  instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
+  condicoes.classList.add("oculto");
+
+  // O botão de gravar só aparece com a posição nova já carregada: antes dela,
+  // `atual` ainda é a posição enviada, e uma gravação começada nessa janela
+  // tocaria o modelo de uma frase e sairia rotulada com a anterior.
+  if (condicoesDaSessao) principal.classList.remove("oculto");
+
+  // Os campos da sessão aparecem uma vez, antes da primeira gravação dela.
+  if (!condicoesDaSessao) {
+    document.getElementById("sessao_campos").classList.remove("oculto");
+    principal.classList.add("oculto");
+    // As figuras ficam ocultas enquanto a família responde às perguntas, para o
+    // adolescente não ver o alvo e falar antes de existir gravação.
+    palco.classList.add("oculto");
+    // a regra do bloco só vale quando há bloco: não antes de a sessão abrir
+    document.getElementById("regra_do_bloco").classList.add("oculto");
+    instrucaoEl.textContent =
+      "Antes de começar, quatro perguntas rápidas sobre hoje.";
+    // Se a página for recarregada no meio da sessão, as respostas somem da memória;
+    // respondidas de novo com outras palavras, o receptor recusaria a gravação por
+    // "canal diferente". O receptor devolve o que já foi gravado nesta sessão
+    // (aparelho, cômodo, onde fica); a página só preenche, a família confere e
+    // toca em Continuar. O "algo diferente" nunca volta (pode conter dado de saúde).
+    const retomadas = resumo.condicoes_da_sessao;
+    const botaoSessao = document.querySelector("#comecar_sessao"); // querySelector: o teste de contrato usa getElementById("comecar_sessao") como marco
+    if (retomadas && retomadas.dispositivo && retomadas.ambiente) {
+      document.getElementById("aparelho").value = retomadas.dispositivo;
+      document.getElementById("comodo").value = retomadas.ambiente;
+      document.getElementById("posicao_aparelho").value = retomadas.posicao || "";
+      botaoSessao.textContent = "Continuar a sessão";
+      instrucaoEl.textContent =
+        "Você já começou a sessão de hoje. Confira as respostas e toque em Continuar.";
+    } else {
+      botaoSessao.textContent = "Começar a sessão";
+    }
+  }
+}
+
+// As condições da sessão, preenchidas uma vez e usadas em todas as gravações
+// dela. Não são limpas ao regravar: descrevem o lugar e o dia, que não mudam
+// porque a gravação foi refeita.
+let condicoesDaSessao = null;
+let sessaoDasCondicoes = null;   // a sessão a que as respostas acima pertencem
+// A ficha do ambiente desta sessão (nula com a chave desligada).
+let ambienteDaSessao = null;
+
+function limparMarcaDaGravacao() {
+  // O botão opcional é desta gravação: ao regravar, a marca anterior descrevia
+  // um áudio descartado, e herdá-la a aplicaria ao novo.
+  document.getElementById("teve_barulho").checked = false;
+}
+
+function lerCamposDaSessao() {
+  const campos = ["aparelho", "comodo", "posicao_aparelho"].map(
+    (id) => (document.getElementById(id).value || "").trim());
+  // Os três primeiros são obrigatórios: são eles que definem o canal, e o canal
+  // delimita a sessão. "Algo diferente hoje?" é opcional de propósito: em branco
+  // significa "nada a relatar", que é informação.
+  if (campos.some((v) => !v)) return null;
+  return {
+    dispositivo: campos[0],
+    ambiente: campos[1],
+    posicao: campos[2],
+    algo_diferente: (document.getElementById("diferente").value || "").trim(),
+    navegador: navigator.userAgent.slice(0, 120),
+  };
+}
+
+function condicoesEscolhidas() {
+  if (!condicoesDaSessao) return null;
+  return Object.assign({}, condicoesDaSessao, {
+    // a marca opcional entra como "sim" ou "nao_marcado", e "não marcado" não é
+    // "não houve".
+    teve_barulho: document.getElementById("teve_barulho").checked
+      ? "sim" : "nao_marcado",
+  });
+}
+
+document.getElementById("comecar_sessao").addEventListener("click", async () => {
+  const campos = lerCamposDaSessao();
+  if (!campos) {
+    aviso("Preencha o aparelho, o cômodo e onde o celular fica.", true);
+    return;
+  }
+  condicoesDaSessao = campos;
+  sessaoDasCondicoes = atual ? atual.sessao : null;
+  document.getElementById("sessao_campos").classList.add("oculto");
+  // Com a chave ligada, o silêncio é medido aqui, com as figuras ainda ocultas e
+  // o botão de gravar ainda escondido. Desligada, nada é aguardado.
+  const textoDoAmbiente = AMBIENTE_NA_SESSAO ? await medirAmbienteNaAbertura() : "";
+  document.getElementById("regra_do_bloco").classList.remove("oculto");
+  palco.classList.remove("oculto");
+  principal.classList.remove("oculto");
+  liberarBotaoDaFrase(atual);
+  // troca a instrução das perguntas pela de gravar
+  instrucaoEl.textContent =
+    INSTRUCAO_ANTES_DE_GRAVAR;
+  // aviso do ambiente sem a forma de erro: informa e deixa seguir
+  aviso(textoDoAmbiente);
+});
+
+// Mede o ambiente e devolve o texto dos avisos (vazio se não houver). Qualquer
+// falha vira ficha com motivo, e a sessão segue: a medida nunca impede gravar.
+// O microfone fecha no fim, para a frase-modelo tocar sem captura ativa.
+async function medirAmbienteNaAbertura() {
+  // a mesma regra de toda captura: a frase some antes de o microfone abrir
+  travarFraseDuranteGravacao();
+  instrucaoEl.textContent = INSTRUCAO_DO_SILENCIO;
+  let mic = null;
+  try {
+    mic = await abrirMicrofone();
+    ambienteDaSessao = await medirAmbienteDaSessao({ microfone: mic });
+  } catch (e) {
+    ambienteDaSessao = fichaDeFalha(e);
+  } finally {
+    if (mic) fecharMicrofone(mic);
+  }
+  return ambienteDaSessao.avisos.map((c) => TEXTOS_DOS_AVISOS_DO_AMBIENTE[c]).join(" ");
+}
+
+principal.addEventListener("click", async () => {
+  if (gravando) {          // parar
+    let resultado;
+    // com a cauda, a gravação segue até o fim dela e o botão fica travado
+    if (CAUDA_APOS_PARAR) {
+      principal.disabled = true;
+      principal.textContent = "Gravando…";
+      resultado = await pararComCauda(gravando, CAUDA_MS);
+      principal.disabled = false;
+    } else {
+      resultado = gravando.parar();
+    }
+    caudaDaTomada = CAUDA_APOS_PARAR
+      ? { ms: resultado.cauda_ms, medida_ms: resultado.cauda_medida_ms } : null;
+    saturacaoDaTomada = SATURACAO_NA_PAGINA ? medirSaturacao(resultado.amostras) : null;
+    // Com o modelo ligado, o microfone fecha aqui, para a próxima tomada tocar o
+    // modelo sem captura ativa. Desligado, `microfone` volta igual.
+    microfone = encerrarTomada({ modeloLigado: MODELO_PRE_GRAVADO, microfone,
+                                 fechar: fecharMicrofone });
+    audio = resultado.amostras;
+    preRolagem = { ms: resultado.pre_rolagem_ms, medida: resultado.pre_rolagem_medida_ms };
+    gravando = null;
+    // Parou de gravar: a família pode conferir de novo, antes de enviar.
+    liberarBotaoDaFrase(atual);
+    principal.textContent = ROTULO_DO_BOTAO;
+    principal.classList.add("oculto");
+    apos.classList.remove("oculto");
+    condicoes.classList.remove("oculto");   // só agora: o fato já aconteceu
+    // Texto ainda sujeito a revisão clínica e ética. Pede só que se confira se
+    // gravou, sem convidar a julgar a fala.
+    instrucaoEl.textContent = INSTRUCAO_DEPOIS_DE_GRAVAR;
+    // pico no teto: aviso sem bloquear; a família pode enviar ou gravar de novo
+    aviso(saturacaoDaTomada && saturacaoDaTomada.pico >= TETO_DE_AMOSTRA
+          ? AVISO_DE_SATURACAO : "");
+    return;
+  }
+  // elemento de áudio destravado no toque, quando há espera antes do modelo
+  let audioDoModelo;
+  try {
+    limparMarcaDaGravacao();
+    // Antes de abrir o microfone, o botão "ver a frase" some e a frase revelada
+    // fecha. A ordem importa: travar depois de abrir o microfone deixaria uma
+    // janela em que o alvo está na tela com a captura ativa.
+    travarFraseDuranteGravacao();
+    // O ritmo vem do protocolo; sem ele, só a bancada grava (com o de bancada).
+    // Participante real sem ritmo definido já foi recusado pela trava; esta
+    // conferência repete a recusa aqui, para a página nunca inventar um valor.
+    const ritmo = ritmoDaSessao(protocoloLido, ehEngenharia(PESSOA));
+    if (!ritmo) {
+      aviso("Esta página ainda não está liberada para gravar participantes. " +
+            "Avise quem te enviou o link.", true);
+      liberarBotaoDaFrase(atual);
+      return;
+    }
+    if (MODELO_PRE_GRAVADO) {
+      // texto do modelo ainda sujeito a revisão clínica e ética
+      principal.disabled = true;
+      instrucaoEl.textContent = INSTRUCAO_DO_MODELO;
+      // Intervalo mínimo entre a gravação confirmada e a próxima frase-modelo.
+      // Com o modelo desligado, quem dá o ritmo é a família, e nada muda.
+      const falta = confirmadaEm === null ? 0
+        : ritmo.intervalo_ate_proxima_frase_ms - (Date.now() - confirmadaEm);
+      if (falta > 0) {
+        // A espera tira o `play()` do modelo do gesto do toque, e o Safari do iOS
+        // pode recusá-lo. O elemento de áudio é destravado aqui, ainda dentro do
+        // gesto e antes do `await`; o modelo toca nele depois da espera. Sem
+        // espera, `tocarModelo` já roda dentro do gesto e nada muda.
+        audioDoModelo = destravarModelo(enderecoDaFraseModelo(atual && atual.rotulo));
+        await new Promise((r) => setTimeout(r, falta));
+      }
+    }
+    // A ordem (fechar microfone → modelo até o fim → folga → abrir → gravar) está
+    // em `iniciarTomada`. Com o modelo desligado, ela só abre o microfone se
+    // preciso e grava.
+    const tomada = await iniciarTomada({
+      modeloLigado: MODELO_PRE_GRAVADO, microfone,
+      abrir: abrirMicrofone, fechar: fecharMicrofone,
+      folgaMs: ritmo.folga_apos_modelo_ms,
+      // um arquivo por frase (captura.js, `enderecoDoModelo`), da voz certa
+      // com espera, no elemento destravado no toque; sem espera, num elemento novo
+      tocar: () => (audioDoModelo
+        ? tocarModelo(enderecoDaFraseModelo(atual && atual.rotulo), { criarAudio: audioDoModelo })
+        : tocarModelo(enderecoDaFraseModelo(atual && atual.rotulo))),
+      iniciarGravacao: (mic) => {
+        taxa = mic.taxa;
+    // Pré-rolagem: grava primeiro, mostra o pictograma depois. Com o estímulo
+    // antes, o silêncio inicial volta a ter duração desconhecida, e o consenso
+    // pode pôr o onset dentro dele. O palco fica vazio durante a pré-rolagem de
+    // propósito: garante que nenhum movimento de busca articulatória começa antes
+    // de t = PRE_ROLAGEM_MS, porque a pessoa ainda não viu o que dizer.
+        palco.innerHTML = "";
+        return gravadorComPreRolagem(
+          mic.fluxo, mic.contexto, () => desenharPictogramas(atual));
+      },
+    });
+    const gravacaoIniciada = tomada.gravando;
+    folgaDaTomada = tomada.folga;
+    microfone = tomada.microfone;
+    gravando = gravacaoIniciada;
+    marcarTomadaEmCurso();
+    if (MODELO_PRE_GRAVADO) principal.disabled = false;
+    principal.textContent = "Parar";
+    instrucaoEl.textContent = "Gravando. Toque em Parar quando ele terminar de falar.";
+    aviso("");
+  } catch (e) {
+    if (MODELO_PRE_GRAVADO) {
+      // só com o modelo ligado: destrava o botão e desfaz o texto do modelo
+      principal.disabled = false;
+      instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
+    }
+    if (e instanceof FalhaDoModelo) {
+      // Modelo que não tocou até o fim: nada foi gravado. O diagnóstico vai
+      // para o console; a família recebe o que fazer.
+      console.error("Modelo pré-gravado: " + e.message);
+      aviso("Não consegui tocar a frase de exemplo, então não gravei. Avise quem te enviou o link.", true);
+      return;
+    }
+    aviso("Não consegui abrir o microfone. Permita o acesso e tente de novo.", true);
+  }
+});
+
+document.getElementById("ouvir").addEventListener("click", () => {
+  const wav = escreverWav(audio, taxa);
+  const url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+  new Audio(url).play();
+});
+
+// Contador de tentativas. O áudio descartado nunca é salvo (fica em memória até a
+// confirmação); sem contador, a família poderia descartar quantas tomadas quisesse
+// sem ficar registro de que descartou.
+//
+// Por que isso importa: se a família descarta a tomada que soou pior, as
+// sobreviventes são as mais parecidas entre si. A medida de variabilidade cai, e
+// cai mais em quem varia mais (medido: de 18% a 55% conforme o comportamento). Na
+// primeira hipótese o efeito é oposto e igualmente ruim: a diferença pareada de
+// acerto sobe até 6,3 pontos. Os dois erros apontam para a direção que faz o
+// estudo parecer certo.
+//
+// Isto é só registro: conta, e nada mais. A família não vê diferença, e o
+// comportamento dela não muda. Impedir a regravação é outra coisa, ainda não
+// decidida, e está atrás da opção desligada logo abaixo.
+let tentativasDaGravacao = 1;
+// O contador também fica no navegador (captura.js, `lerContador`), com chave por
+// participante, sessão, frase e repetição: recarregar a página no meio de uma
+// posição não o zera. `chaveDoContadorAtual` é a posição a que a memória se refere.
+const ARMAZEM_DO_CONTADOR = armazemDoNavegador();
+let chaveDoContadorAtual = "";
+
+// Ritmo: a folga medida da última tomada vai no envio; o instante da última
+// confirmação conta o intervalo mínimo até a próxima frase tocar.
+let folgaDaTomada = null;
+let confirmadaEm = null;
+// Cauda e saturação da última tomada, para o envio (nulas com as chaves desligadas).
+let caudaDaTomada = null;
+let saturacaoDaTomada = null;
+
+// O motivo técnico de cada regravação. A instrução à família é regravar só por
+// falha técnica. A página não pergunta nada a ela: o motivo é o que a própria
+// página sabe. Se a tomada anterior foi recusada pelo servidor ou o envio caiu, o
+// código diz isso; se a família tocou "Gravar de novo" sem falha que a página
+// tenha visto, o código diz que não há motivo técnico registrado. Não se inventa
+// motivo; fica só o registro automático.
+// Os códigos são os mesmos de `MOTIVOS_DE_REGRAVACAO` em `src/receptor.py`.
+let motivosDasRegravacoes = [];
+let falhaTecnicaDaTomada = null;
+
+function contarTentativa(motivo) {
+  tentativasDaGravacao += 1;
+  motivosDasRegravacoes.push(motivo || "sem_motivo_tecnico_registrado");
+  falhaTecnicaDaTomada = null;
+  guardarContador(ARMAZEM_DO_CONTADOR, chaveDoContadorAtual,
+                  { tentativas: tentativasDaGravacao, motivos: motivosDasRegravacoes });
+}
+
+// Ao mudar de posição, a memória passa a ser a do registro guardado dessa posição
+// (1 e nenhum motivo, se não houver). Na mesma posição nada muda: sem
+// armazenamento, é a memória que guarda a contagem.
+function retomarContador(posicao) {
+  const chave = posicao ? chaveDoContador({ pessoa: PESSOA, sessao: posicao.sessao,
+                                            rotulo: posicao.rotulo,
+                                            repeticao: posicao.repeticao }) : "";
+  if (chave === chaveDoContadorAtual) return;
+  chaveDoContadorAtual = chave;
+  const lido = lerContador(ARMAZEM_DO_CONTADOR, chave);
+  tentativasDaGravacao = lido.tentativas;
+  motivosDasRegravacoes = lido.motivos;
+  falhaTecnicaDaTomada = null;
+  // A tomada abandonada por recarga ou fechamento já entrou na contagem lida; o
+  // registro é regravado sem ela pendente, para não contá-la de novo.
+  if (lido.tomadaAbandonada) {
+    guardarContador(ARMAZEM_DO_CONTADOR, chave,
+                    { tentativas: tentativasDaGravacao, motivos: motivosDasRegravacoes });
+  }
+}
+
+// Uma tomada começou (ou a falha técnica dela mudou): o registro da posição passa
+// a dizer que há uma tomada em curso e com que motivo ela seria contada se a
+// página fosse recarregada ou fechada antes da confirmação.
+function marcarTomadaEmCurso() {
+  guardarContador(ARMAZEM_DO_CONTADOR, chaveDoContadorAtual,
+                  { tentativas: tentativasDaGravacao, motivos: motivosDasRegravacoes,
+                    pendente: falhaTecnicaDaTomada || MOTIVO_SEM_FALHA_VISTA });
+}
+
+// Zera quando a gravação é confirmada: o contador é de uma posição. Sem isso, a
+// gravação seguinte da sessão sairia com a contagem da anterior.
+function zerarTentativas() {
+  // a confirmação da gravação é o marco do intervalo até a próxima frase
+  confirmadaEm = Date.now();
+  // a posição foi confirmada: o registro dela no navegador não serve mais
+  apagarContador(ARMAZEM_DO_CONTADOR, chaveDoContadorAtual);
+  chaveDoContadorAtual = "";
+  tentativasDaGravacao = 1;
+  motivosDasRegravacoes = [];
+  falhaTecnicaDaTomada = null;
+}
+
+// Desligada; em aberto: sem regravação voluntária nos blocos de consistência e de
+// teste, permitida e contada no treino. Ligar muda o procedimento e a experiência
+// da família, então passa pela pesquisadora responsável pela ética antes de valer.
+const SEM_REGRAVACAO_VOLUNTARIA = false;
+const SESSOES_SEM_REGRAVACAO = [3, 4, 5, 6];
+
+function podeRegravar() {
+  if (!SEM_REGRAVACAO_VOLUNTARIA) return true;
+  if (!atual) return true;
+  return !SESSOES_SEM_REGRAVACAO.includes(Number(atual.sessao));
+}
+
+document.getElementById("regravar").addEventListener("click", () => {
+  if (!podeRegravar()) {
+    // Texto para a família: ela não errou nada, e o motivo é do estudo.
+    aviso("Nesta parte a gente guarda todas as tentativas, mesmo as que não "
+      + "ficaram boas. Pode seguir para a próxima.", true);
+    return;
+  }
+  contarTentativa(falhaTecnicaDaTomada || "sem_motivo_tecnico_registrado");
+  // nada a descartar: a gravação nunca chegou a ser salva.
+  audio = null;
+  apos.classList.add("oculto");
+  condicoes.classList.add("oculto");
+  limparMarcaDaGravacao();
+  principal.classList.remove("oculto");
+  // A gravação foi descartada: a instrução volta a ser a de gravar, não a de ouvir.
+  instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
+  aviso("");
+});
+
+document.getElementById("enviar").addEventListener("click", async () => {
+  const botao = document.getElementById("enviar");
+  if (!condicoesEscolhidas()) {
+    // Os campos da sessão são obrigatórios e são perguntados no começo da sessão;
+    // a mensagem aponta para essas perguntas, as únicas que a página faz.
+    aviso("Antes de enviar, responda as perguntas do começo da sessão: aparelho, "
+          + "cômodo e onde o celular fica. Recarregue a página para vê-las.", true);
+    return;
+  }
+  botao.disabled = true;
+  // Durante o envio, "Gravar de novo" e "Ouvir" ficam desativados: o primeiro envio
+  // depois de ligar o servidor pode levar vários segundos, e regravar no meio
+  // trocaria o áudio enquanto o anterior viaja.
+  const secundarios = [document.getElementById("ouvir"), document.getElementById("regravar")];
+  secundarios.forEach((b) => { b.disabled = true; });
+  aviso("Enviando… pode levar alguns segundos. Não feche a página.");
+  try {
+    const resposta = await enviarGravacao(ENVIO, montarEnvio({
+      pessoa: PESSOA, rotulo: atual.rotulo, sessao: atual.sessao,
+      // A repetição: sem ela o receptor do Apps Script não consegue montar o
+      // nome determinístico, e um reenvio vira gravação a mais.
+      repeticao: atual.repeticao,
+      conjunto: atual.conjunto, grupo: parametros.get("g") || undefined,
+      condicoes: condicoesEscolhidas(),
+      wavBase64: paraBase64(escreverWav(audio, taxa)),
+      segredo: SEGREDO,
+      // a marca de onde o silêncio de duração conhecida termina viaja com o áudio
+      preRolagemMs: preRolagem && preRolagem.ms,
+      preRolagemMedidaMs: preRolagem && preRolagem.medida,
+      // a folga entre o fim da frase-modelo e o início da gravação, nominal e medida
+      folgaAposModeloMs: folgaDaTomada ? folgaDaTomada.ms : undefined,
+      folgaAposModeloMedidaMs: folgaDaTomada ? folgaDaTomada.medida_ms : undefined,
+      // a cauda depois de Parar, nominal e medida, e a saturação medida
+      caudaMs: caudaDaTomada ? caudaDaTomada.ms : undefined,
+      caudaMedidaMs: caudaDaTomada ? caudaDaTomada.medida_ms : undefined,
+      saturacao: saturacaoDaTomada || undefined,
+      // a ficha do ambiente da sessão, a mesma em todas as gravações dela
+      ambienteDaSessao: ambienteDaSessao || undefined,
+      // quantas tomadas foram feitas até esta (1 = não regravou)
+      tentativas: tentativasDaGravacao,
+      // um código por regravação desta posição (tamanho = tentativas − 1)
+      motivosDasRegravacoes: motivosDasRegravacoes.slice(),
+    }));
+    // `enviarGravacao` já lança quando a resposta não é ok; aqui só resta
+    // conferir a confirmação.
+    if (!resposta || !resposta.confirmado) {
+      // Sem confirmação, a posição continua vazia e não avança. O Apps Script
+      // responde sempre HTTP 200, e a recusa dele chega por aqui, com o motivo
+      // em `erro`; a do canal trocado reabre as perguntas como no ramo abaixo.
+      const erro = (resposta && resposta.erro) || "";
+      falhaTecnicaDaTomada = "recusa_do_servidor";
+      marcarTomadaEmCurso();
+      if (/canal de gravação mudou/i.test(erro)) await reabrirPerguntasDaSessao();
+      aviso(erro || "Não chegou. Grave de novo.", true);
+      return;
+    }
+    zerarTentativas();
+    audio = null;
+    preRolagem = null;
+    apos.classList.add("oculto");
+    condicoes.classList.add("oculto");
+    limparMarcaDaGravacao();
+    aviso("");
+    await carregarAgendaComNovaConsulta();    // o avanço é consequência da confirmação
+  } catch (e) {
+    // Recusa explicada pelo servidor e queda de conexão têm mensagens diferentes;
+    // o motivo do servidor aparece quando existe.
+    // A conexão pode cair depois de o arquivo chegar (o servidor salvou, a resposta
+    // se perdeu), e pedir "grave de novo" aí gera uma gravação a mais da mesma
+    // frase. Antes de pedir de novo, a página pergunta a agenda: se o número de
+    // gravações que faltam diminuiu, chegou.
+    const faltavam = resumo && resumo.faltam;
+    const ehRecusaDoServidor = e && e.message && !/demorou demais|Failed to fetch|NetworkError|Load failed|network/i.test(e.message);
+    if (!ehRecusaDoServidor && typeof faltavam === "number") {
+      try {
+        // a pergunta vai ao receptor (o que já chegou), e a conta é feita aqui
+        const agora = await calcularResumo();
+        if (agora && typeof agora.faltam === "number" && agora.faltam < faltavam) {
+          zerarTentativas();
+          audio = null;
+          preRolagem = null;
+          apos.classList.add("oculto");
+          condicoes.classList.add("oculto");
+          limparMarcaDaGravacao();
+          aviso("");
+          await carregarAgendaComNovaConsulta();
+          return;
+        }
+      } catch (_) { /* sem agenda: cai no aviso abaixo */ }
+    }
+    const motivo = (e && e.message && ehRecusaDoServidor) ? e.message
+      : "A conexão caiu antes de o arquivo chegar. Confira a internet e toque em enviar de novo — a gravação continua aqui.";
+    // se o motivo do servidor já diz "grave de novo", a tela não repete a frase
+    const jaDiz = /de novo|regrave/i.test(motivo);
+    falhaTecnicaDaTomada = ehRecusaDoServidor ? "recusa_do_servidor" : "falha_de_conexao";
+    marcarTomadaEmCurso();
+    // a recusa do canal trocado pelo receptor local chega como erro HTTP
+    if (ehRecusaDoServidor && /canal de gravação mudou/i.test(motivo)) {
+      await reabrirPerguntasDaSessao();
+    }
+    aviso("Não deu para enviar. " + motivo + (jaDiz ? "" : " Grave de novo."), true);
+  } finally {
+    botao.disabled = false;
+    secundarios.forEach((b) => { b.disabled = false; });
+  }
+});
+
+// Com o canal recusado, reenviar recusaria de novo para sempre, porque as
+// respostas da sessão ficam ocultas depois de "Começar". A página reabre as
+// perguntas, preenchidas como estavam no começo da sessão (vêm do receptor),
+// e a família grava de novo do jeito original. A recusa chega de dois jeitos:
+// como erro HTTP (receptor local) ou como resposta 200 sem confirmação (Apps
+// Script, que não escolhe o código HTTP); os dois passam por aqui.
+async function reabrirPerguntasDaSessao() {
+  // a tomada é descartada sem o botão: também é regravação, e conta
+  contarTentativa("recusa_do_servidor");
+  condicoesDaSessao = null;
+  sessaoDasCondicoes = null;
+  audio = null;
+  preRolagem = null;
+  apos.classList.add("oculto");
+  condicoes.classList.add("oculto");
+  limparMarcaDaGravacao();
+  // O botão de gravar volta pela agenda, que mostra as perguntas antes dele.
+  // Sem agenda, as perguntas não reabrem, e um botão à vista levaria a uma
+  // tomada que a página não deixa enviar (o envio sem as condições da sessão é
+  // recusado aqui mesmo): a tela é a da sessão não carregada, e o aviso da
+  // recusa continua embaixo.
+  await carregarAgendaComNovaConsulta();
+}
+
+// Trava de participante real. O marcador "[A DEFINIR" da regra do bloco não pode
+// ir para família real. Antes de abrir a agenda, um pseudônimo que não é de
+// bancada (`ENG###`) passa pela trava de `trava_de_participante.js`: com marcador
+// à vista, pictograma provisório ou `subconjunto_consistencia` ausente no
+// `protocolo.json`, a sessão não abre, e o motivo aparece em PT-BR. `ENG###`
+// segue direto.
+function textosDaPagina() {
+  // o que a família pode ver: o corpo sem os scripts (comentário HTML não é texto)
+  const copia = document.body.cloneNode(true);
+  copia.querySelectorAll("script").forEach((s) => s.remove());
+  const textos = [copia.textContent || ""];
+  if (MODELO_PRE_GRAVADO) textos.push(INSTRUCAO_DO_MODELO);
+  return textos;
+}
+
+async function liberadaParaEstaPessoa() {
+  if (ehEngenharia(PESSOA)) return true;
+  let protocolo = null;
+  try {
+    protocolo = await lerProtocolo();
+  } catch (_) { /* sem protocolo: a trava recusa e diz por quê */ }
+  const motivos = motivosDaTrava({
+    pessoa: PESSOA, grupo: parametros.get("g") || "",
+    textosVisiveis: textosDaPagina(), protocolo,
+    // sem a voz-modelo definitiva, participante real não grava
+    vozModeloDefinitiva: Boolean(ENDERECO_DOS_MODELOS),
+  });
+  if (!motivos.length) return true;
+  console.error("Trava de participante real: " + motivos.join(" · "));
+  telaCheia("", "Esta página ainda não está liberada para gravar participantes. " +
+    "Não é nada que você tenha feito. Avise quem te enviou o link. Motivo: " +
+    motivos.join("; ") + ".");
+  return false;
+}
+
+// A sessão não carregou. O mesmo texto serve à abertura, ao avanço depois de
+// uma gravação confirmada e à reabertura das perguntas depois da recusa por
+// canal, e não fala da gravação. Na reabertura a tomada recusada não foi
+// guardada; quem diz isso é o aviso da recusa, que fica embaixo.
+function naoCarregouASessao(e) {
+  telaCheia("", e instanceof ErroDoReceptor && e.message !== "o receptor não respondeu"
+    ? "Não consegui carregar a sessão. " + e.message
+    : "Não consegui carregar a sessão. Confira se o celular está com " +
+      "internet e abra o link de novo.");
+}
+
+// A agenda carregada depois de um envio: no avanço (a gravação chegou) e na
+// reabertura das perguntas (o canal foi recusado). Depois da confirmação a
+// gravação já está no receptor; se a agenda não carrega agora, a falha não pode
+// chegar ao tratamento da queda do envio, que diria que o arquivo não chegou e
+// marcaria a posição como tomada perdida. Uma falha passageira não deve mandar
+// a família reabrir o link: a agenda é consultada uma segunda vez antes da tela
+// de sessão não carregada. Quando a primeira consulta terminou pelo prazo, não
+// há segunda: a família já esperou o prazo inteiro sem botão, e outra consulta
+// dobraria essa espera.
+async function carregarAgendaComNovaConsulta() {
+  try {
+    await carregarAgenda();
+  } catch (primeira) {
+    if (/demorou demais/i.test((primeira && primeira.message) || "")) {
+      naoCarregouASessao(primeira);
+      return;
+    }
+    try {
+      await carregarAgenda();
+    } catch (e) {
+      naoCarregouASessao(e);
+    }
+  }
+}
+
+if (!PESSOA || !ENVIO || !SEGREDO) {
+  // Sem destino configurado, a página não grava. O link incompleto acontece de
+  // verdade (aplicativo de mensagem corta o endereço), e a tela diz o que fazer
+  // em vez de ficar parada em "carregando…".
+  telaCheia("", "Este link chegou incompleto. Peça o link de novo a quem te enviou — " +
+    "às vezes o aplicativo de mensagem corta o endereço.");
+} else {
+  // quando o receptor explica (link inválido, por exemplo), a família lê o motivo
+  liberadaParaEstaPessoa().then((liberada) => liberada && carregarAgenda())
+    .catch(naoCarregouASessao);
+}
+</script>
+</body>
+</html>
