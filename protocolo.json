@@ -3,10 +3,11 @@
   "blocos_de_consistencia": {},
   "dividir_consistencia": true,
   "frase_sobre_pictogramas": false,
+  "limite_da_sessao_min": 15,
   "palavra_sob_pictograma": false,
+  "pausa_entre_blocos_s": 60,
   "ritmo": {
-   "folga_apos_modelo_ms": "[A DEFINIR PELAS FONOAUDIÓLOGAS]",
-   "intervalo_ate_proxima_frase_ms": "[A DEFINIR PELAS FONOAUDIÓLOGAS]"
+   "intervalo_ate_proxima_frase_ms": 1500
   },
   "semente_do_sorteio": "afi-2026",
   "sessao_por_dia": "recusa",
@@ -41,7 +42,26 @@
     "numero": 6,
     "repeticoes": 3
    }
-  ]
+  ],
+  "subconjunto_consistencia": [
+   "me_ajuda",
+   "preciso_descansar",
+   "nao_quero",
+   "espera_um_pouco",
+   "vem_aqui",
+   "posso_ir_junto",
+   "eu_consigo",
+   "nao_estou_bem"
+  ],
+  "validacao_pendente": {}
+ },
+ "criterios_da_classe_1": {
+  "duracao_maxima_s": 10,
+  "fala_cortada": {
+   "fim_s": 0.1,
+   "inicio_s": 0.1
+  },
+  "saturacao": 0.001
  },
  "frases_alvo": {
   "deixa_eu_fazer": "deixa eu fazer",
@@ -60,40 +80,42 @@
  "palavras_dos_pictogramas": {},
  "pictogramas": {
   "deixa_eu_fazer": [
-   "🚧"
+   6632,
+   32751
   ],
   "espera_um_pouco": [
-   "🚧"
+   16697
   ],
   "estou_com_dor": [
-   "🚧"
+   36480,
+   2367
   ],
   "eu_consigo": [
-   "🚧"
+   31408
   ],
   "eu_nao_gosto": [
-   "🚧"
+   6155
   ],
   "me_ajuda": [
-   "🚧"
+   32648
   ],
   "nao_estou_bem": [
-   "🚧"
+   37182
   ],
   "nao_quero": [
-   "🚧"
+   29129
   ],
   "posso_ir_junto": [
-   "🚧"
+   37485
   ],
   "preciso_descansar": [
-   "🚧"
+   16643
   ],
   "vamos_conversar": [
-   "🚧"
+   "3345_sem_texto"
   ],
   "vem_aqui": [
-   "🚧"
+   32669
   ]
  }
 }

@@ -29,6 +29,21 @@ import { RandomPython } from "./rng_python.js";
 export class ProtocoloInvalido extends Error {}
 
 /**
+ * A `coleta.semente_do_sorteio` registrada, ou recusa. Igual a
+ * `agenda.semente_do_sorteio` do Python: sem a chave, ou com ela vazia, não há
+ * sorteio (antes de 06/10/2026 caía num "afi" que não está no pré-registro).
+ */
+export function sementeDoSorteio(config) {
+  const valor = (config.coleta || {}).semente_do_sorteio;
+  if (valor === undefined || valor === null || String(valor).trim() === "") {
+    throw new ProtocoloInvalido(
+      "coleta.semente_do_sorteio está vazia ou ausente: sem a semente registrada " +
+      "não há sorteio da ordem das frases nem da divisão dos blocos de consistência.");
+  }
+  return String(valor);
+}
+
+/**
  * Ordenação por ponto de código, como o `sorted` do Python.
  *
  * O `sort()` padrão do JavaScript compara por unidade de código UTF-16, e as
@@ -66,8 +81,33 @@ function sessoesDoProtocolo(config) {
   return sessoes;
 }
 
+/** As frases-alvo em ordem canônica (alfabética do rótulo). É a ordem de
+ *  descrição do protocolo, não a de gravação: esta sai de `ordemDasFrasesNaSessao`. */
 export function frasesDoProtocolo(config) {
   return ordenarComoPython(Object.keys(config.frases_alvo || {}));
+}
+
+/**
+ * O texto que semeia o sorteio da ordem das frases numa sessão, igual ao
+ * `agenda.semente_da_ordem` do Python: "{semente_do_sorteio}|{pessoa}|sessao{N}".
+ */
+export function sementeDaOrdem(config, pessoa, sessao) {
+  return sementeDoSorteio(config) + "|" + String(pessoa) +
+    "|sessao" + String(Number(sessao));
+}
+
+/**
+ * A ordem das frases de uma sessão (decisão J4, 02/10): sorteada por
+ * participante e por sessão, com a semente registrada, a partir da ordem
+ * canônica. Mesmo sorteio do `agenda.ordem_das_frases_na_sessao` do Python.
+ * Só muda a ordem entre frases; as repetições de cada frase ficam juntas.
+ * Sem pessoa, devolve a ordem canônica.
+ */
+export function ordemDasFrasesNaSessao(config, pessoa, sessao, frases) {
+  const ordem = ordenarComoPython(frases);
+  if (pessoa == null) return ordem;
+  new RandomPython(sementeDaOrdem(config, pessoa, sessao)).shuffle(ordem);
+  return ordem;
 }
 
 export function subconjuntoDeConsistencia(config) {
@@ -129,7 +169,7 @@ export function blocosDeConsistencia(config, pessoa) {
       sessoesC.length + " sessões de consistência: a divisão não é exata.");
   }
 
-  const semente = String(coleta.semente_do_sorteio ?? "afi") + "|" + String(pessoa);
+  const semente = sementeDoSorteio(config) + "|" + String(pessoa);
   const ordem = [...subconjunto];
   new RandomPython(semente).shuffle(ordem);
   const porBloco = ordem.length / sessoesC.length;
@@ -145,7 +185,8 @@ export function blocosDeConsistencia(config, pessoa) {
  * Posição = {sessao, rotulo, repeticao, conjunto}.
  *
  * A ordem é por sessão e depois por frase: dentro de uma sessão, as repetições
- * de uma frase ficam juntas. É o que o bloco de consistência exige.
+ * de uma frase ficam juntas. É o que o bloco de consistência exige. Com pessoa,
+ * a ordem das frases em cada sessão é a sorteada (`ordemDasFrasesNaSessao`).
  */
 export function posicoesDoProtocolo(config, pessoa) {
   const frases = frasesDoProtocolo(config);
@@ -165,6 +206,7 @@ export function posicoesDoProtocolo(config, pessoa) {
     } else {
       desteBloco = frases;
     }
+    desteBloco = ordemDasFrasesNaSessao(config, pessoa, numero, desteBloco);
     for (const rotulo of desteBloco) {
       for (let r = 1; r <= Number(sessao.repeticoes); r++) {
         posicoes.push({
@@ -338,11 +380,22 @@ export function resumoNaPagina(config, pessoa, retorno, hoje) {
                     posicao: String(canal.posicao || "") };
     }
   }
+  // O contador que a família vê é o da sessão de hoje ("gravação 3 de 48"), e
+  // não o do estudo inteiro (pedido do pesquisador, 08/10/2026, 15h15: "faltam
+  // 264 de 264" não diz à família quanto falta hoje). `faltam` e `total`
+  // continuam sendo do estudo, para a retomada e para o fim.
+  const naSessao = proxima ? {
+    sessao: proxima.sessao,
+    total: todas.filter((p) => Number(p.sessao) === Number(proxima.sessao)).length,
+    feitas: todas.filter((p) => Number(p.sessao) === Number(proxima.sessao)).length
+      - faltando.filter((p) => Number(p.sessao) === Number(proxima.sessao)).length,
+  } : null;
   return {
     pessoa,
     total: todas.length,
     faltam: faltando.length,
     concluidas: todas.length - faltando.length,
+    sessao_atual: naSessao,
     concluida: faltando.length === 0,
     proxima: comApresentacao(config, proxima),
     outra_sessao_hoje: recusa,

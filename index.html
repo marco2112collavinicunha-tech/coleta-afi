@@ -55,14 +55,18 @@
   #instrucao { font-weight:600; margin:6px 0 12px; }
   button { font:inherit; font-weight:600; padding:14px 20px; border-radius:12px;
            border:1px solid var(--linha); background:#fff; min-height:52px; }
-  #principal { background:var(--acao); color:#fff; border-color:var(--acao); width:100%; }
+  /* Dois toques (08/10/2026): Ouvir e Gravar lado a lado; Gravar é a ação
+     principal e fica destacado; Ouvir é claro, para o dedo não confundir. */
+  #toques { display:flex; gap:8px; }
+  #ouvir_modelo { flex:1; background:#fff; color:var(--acao); border-color:var(--acao); }
+  #ouvir_modelo[disabled] { opacity:.5; }
+  #principal { flex:2; background:var(--acao); color:#fff; border-color:var(--acao); width:100%; }
   #principal[disabled] { opacity:.5; }
   .secundarios { display:flex; gap:8px; margin-top:8px; }
   .secundarios button { flex:1; font-weight:500; font-size:15px; padding:12px 10px; }
   #enviar { width:100%; background:var(--acao); color:#fff; border-color:var(--acao); }
   #enviar[disabled] { opacity:.5; }
   #aviso { margin-top:10px; font-size:14px; }
-  #regra_do_bloco { margin:10px 0 0; font-size:13px; color:#5b6070; }
   /* Em tela cheia, o aviso é a página: aviso de erro ou de fim no rodapé, embaixo
      de um palco vazio, parece tela em branco, e a família acha que travou. */
   body.tela-cheia #palco { display:none !important; }
@@ -142,11 +146,18 @@
       Teve barulho ou interrupção nesta gravação</label></div>
   </fieldset>
 
-  <!-- "Ouvir e gravar": o toque toca a frase-modelo e a gravação começa quando
-       ela termina. Texto da página ainda sujeito a revisão clínica e ética.
-       Começa oculto: antes de a agenda carregar não há posição a gravar, e a
-       agenda o mostra depois das perguntas da sessão. -->
-  <button id="principal" class="oculto">Ouvir e gravar</button>
+  <!-- Dois toques (decisão do pesquisador de 08/10/2026, 05h41 a 05h46):
+       "Ouvir" toca a frase-modelo (os pictogramas ficam na tela); quando o
+       adolescente estiver pronto, a família toca em "Gravar" (o microfone abre e
+       a gravação começa) e depois em "Parar". Tocar "Ouvir" de novo é permitido
+       e contado. "Gravar" só destrava depois de o modelo tocar nesta tomada: a
+       página nunca grava sem o modelo ter tocado. Texto da página ainda sujeito
+       a revisão clínica e ética. Começam ocultos: antes de a agenda carregar não
+       há posição a gravar, e a agenda os mostra depois das perguntas da sessão. -->
+  <div id="toques" class="oculto">
+    <button id="ouvir_modelo">Ouvir</button>
+    <button id="principal" disabled>Gravar</button>
+  </div>
   <!-- Enviar é a ação principal e a mais comum da sessão; as outras duas ficam
        secundárias, embaixo, para que um toque errado não descarte uma gravação boa. -->
   <div class="oculto" id="apos">
@@ -163,15 +174,13 @@
     família só grava.
   -->
   <!--
-    O adolescente pode parar a qualquer momento. Bloco com 6 ou mais repetições
-    vale; com menos, é refeito em outro dia, nunca no mesmo. Pausa entre blocos e
-    teto da sessão ainda não estão definidos: o marcador abaixo é proposital e não
-    pode ir para família real antes de ser trocado pelo valor definido.
-    A agenda ainda não faz o "outro dia": ao reabrir, ela continua o mesmo bloco
-    (src/agenda.py, `pendentes`). Ver a docstring de
-    `blocos_de_consistencia_incompletos`.
+    Sem texto de regras embaixo dos botões (pedido do pesquisador, 08/10/2026,
+    15h41: o parágrafo sobre parar quando quiser, bloco refeito, pausa de 1 min e
+    limite de 15 min "só confunde a família e faz ela ler"). Essas regras ficam no
+    roteiro da primeira conversa e no protocolo (seção 10.4); a página não as
+    declara nem as impõe. O bloco com menos de seis segue a regra da análise
+    (ciclo_osf_08_10/LISTA_DE_CODIGO.md, item 1).
   -->
-  <p id="regra_do_bloco" class="oculto">Ele pode parar quando quiser — o que já foi gravado fica guardado. Se parar logo no começo de uma frase, ela é refeita em outro dia, nunca no mesmo. Pausa entre os blocos de repetição e tempo máximo de cada sessão: [A DEFINIR PELAS FONOAUDIÓLOGAS].</p>
 
   <!-- Não há palavra embaixo do pictograma: com a palavra escrita, a tarefa vira
        leitura em voz alta em vez de repetição da frase-modelo, e a família
@@ -179,31 +188,36 @@
        No lugar, este botão deixa a família conferir o alvo antes de virar a
        tela. Ele some quando a gravação começa e não volta durante ela. -->
   <!-- O lugar do botão fica reservado enquanto ele está oculto, para o painel
-       não encolher e o botão Gravar/Parar não descer sob o dedo. -->
+       não encolher e os botões Ouvir e Gravar/Parar não descerem sob o dedo. -->
   <div id="lugar_da_frase"><button id="ver_frase" type="button" class="oculto">ver a frase</button></div>
   <div id="frase_revelada" class="oculto"></div>
 
   <!-- Atribuição obrigatória (CC BY-NC-SA). É condição da licença, e só sai da
-       página se os pictogramas saírem. -->
+       página se os pictogramas saírem. A licença pede indicar mudanças: desde
+       07/10/2026 a página usa uma adaptação (3345_sem_texto.png, ARASAAC 3345
+       com o texto do balão removido), e a obra derivada continua CC BY-NC-SA. -->
   <div id="creditos">
     Pictogramas: <strong>ARASAAC</strong> · autor <strong>Sergio Palao</strong> ·
     propriedade da <strong>Diputación General de Aragón</strong> ·
     Depósito Legal <strong>Z 901-2013</strong> ·
-    licença <strong>CC BY-NC-SA</strong> · arasaac.org
+    licença <strong>CC BY-NC-SA</strong> · arasaac.org ·
+    um pictograma adaptado pelo projeto (ARASAAC 3345, texto do balão removido),
+    distribuído sob a mesma licença
   </div>
 </section>
 
 <script type="module">
 import { abrirMicrofone, gravador, gravadorComPreRolagem, escreverWav, paraBase64,
          montarEnvio, enviarGravacao,
-         iniciarTomada, encerrarTomada, tocarModelo, fecharMicrofone,
-         FalhaDoModelo, enderecoDoModelo, ritmoDaSessao,
-         pararComCauda, CAUDA_MS, medirSaturacao, TETO_DE_AMOSTRA,
+         iniciarTomada, encerrarTomada, tocarModeloDaTomada, tocarModelo, fecharMicrofone,
+         FalhaDoModelo, ritmoDaSessao,
+         pararComCauda, CAUDA_MS, PRE_ROLAGEM_MS, medirSaturacao, TETO_DE_AMOSTRA,
          medirAmbienteDaSessao, fichaDeFalha,
          AVISO_RUIDO_ALTO, AVISO_ENTRADA_BLUETOOTH,
          destravarModelo, chaveDoContador, armazemDoNavegador,
          lerContador, guardarContador, apagarContador,
-         MOTIVO_SEM_FALHA_VISTA, consultarAgenda } from "./captura.js";
+         MOTIVO_SEM_FALHA_VISTA, consultarAgenda,
+         conferirVozModelo, FalhaDaVozModelo, PRAZO_DA_VOZ_MODELO_MS } from "./captura.js";
 import { motivosDaTrava, ehEngenharia } from "./trava_de_participante.js";
 import { resumoNaPagina, dataLocal, dataParaAFamilia } from "./agenda.js";
 
@@ -213,11 +227,12 @@ import { resumoNaPagina, dataLocal, dataParaAFamilia } from "./agenda.js";
 // ver captura.js, seção do modelo pré-gravado.
 const MODELO_PRE_GRAVADO = true;
 // Cauda depois de Parar (captura.js, `pararComCauda`): a gravação continua
-// CAUDA_MS depois do toque, com "Gravando…" na tela, e a cauda efetiva vai no
-// envio. Desligada: o valor da cauda ainda não foi escolhido. Enquanto
-// desligada, fala cortada no fim continua possível e a página não protege
-// contra ela.
-const CAUDA_APOS_PARAR = false;
+// CAUDA_MS (500 ms) depois do toque, com "Gravando..." na tela, e a cauda
+// efetiva vai no envio. Ligada em 08/10/2026 (decisão do pesquisador, 05h41 a
+// 05h46: "dá tempo dele terminar; e aí corta o silêncio, se já tiver
+// terminado"). É ela que sustenta o critério da fala cortada no fim com 0,1 s
+// (config.yaml, audio.criterios_da_classe_1.fala_cortada.fim_s).
+const CAUDA_APOS_PARAR = true;
 // Saturação (captura.js, `medirSaturacao`): pico e fração das amostras no teto
 // medidos em cada gravação e enviados; com o pico no teto, aviso não bloqueante
 // à família. Desligada: o texto do aviso passa pelas fonoaudiólogas antes.
@@ -242,44 +257,92 @@ const TEXTOS_DOS_AVISOS_DO_AMBIENTE = {
     "Parece que há um fone sem fio ligado. Se der, desligue o fone e use o microfone " +
     "do celular. Pode continuar.",
 };
-// Endereço da pasta da voz-modelo definitiva (um `<rotulo>.wav` por frase).
-// Vazio de propósito: a voz definitiva ainda não existe, e a origem dela depende
-// da escolha do pesquisador responsável e, por mexer em procedimento com
-// participante, da pesquisadora responsável pela ética. Enquanto vazio, a trava de participante real recusa
-// ("voz-modelo definitiva pendente"), e só a bancada ENG### grava.
-const ENDERECO_DOS_MODELOS = "";
-// Voz sintética provisória, só para ENG###. Gerada localmente por
-// `scripts/gerar_voz_modelo_provisoria.py`, fora do repositório, e servida pelo
-// servidor local; o nome de cada arquivo diz que ela é provisória.
-const PASTA_DA_VOZ_PROVISORIA = "voz_modelo_provisoria";
-const SUFIXO_DA_VOZ_PROVISORIA = "__VOZ_SINTETICA_PROVISORIA";
+// Voz-modelo definitiva: as doze frases gravadas por uma fonoaudióloga da equipe
+// em 07/10/2026, uma tomada por frase escolhida pelo pesquisador entre três
+// (decisão de 07/10/2026, 19h44). Procedência e processamento de cada arquivo:
+// `voz_modelo/MANIFESTO.json`. Desde 16/11/2026 (decisão do pesquisador) os .wav
+// não ficam ao lado da página: o receptor os entrega só a quem tem um link
+// válido, e a página confere cada um contra o sha256 abaixo, copiado do
+// manifesto (o teste confere a cópia). Sem os doze valores, a trava de
+// participante real recusa ("voz-modelo definitiva pendente") e só a bancada
+// ENG### grava.
+const VOZ_MODELO_PELO_RECEPTOR = true;
+const SHA256_DA_VOZ_MODELO = {
+  deixa_eu_fazer: "c98ecd4f84bc8976b186b6bfe932b0a30f03b87e425353c977979dee52f683fa",
+  espera_um_pouco: "2a939459109c6362bef1bd64033766194581139f9953cf703c35b8da4574e48f",
+  estou_com_dor: "c861f6624c41cdaab1737c2dda89aca647e514af1c2ebf8fb90c223a43e2d130",
+  eu_consigo: "f936e028d75a7b4094e6f0213c182102feb17b56ea1c00607a72b0829d2f1261",
+  eu_nao_gosto: "cb9ad8ec26fe56ecea3753af575e1a6cf2c244834b2e585ba4b27d993acff4f7",
+  me_ajuda: "9e1f51947d8988a2f53d83d3ec330585986560fec82296d765383e979225eb5d",
+  nao_estou_bem: "2ac62f37ba415914b9da1cff77b34ca03f9b6dbfca2b84ee119a3e2a114059a9",
+  nao_quero: "09324c8ef0e99f3205eb44dd92f80c1268379b69e800a71c2e0f8268f17bbfe4",
+  posso_ir_junto: "f8a7e176a4c590a8924b115978e275f46c814e7d433802397764192ddd190cd5",
+  preciso_descansar: "1101d015a962057dc02ba33da2fde9dd6f591a98298da1e6ba94c49486fe8455",
+  vamos_conversar: "c1ab5bc5af9967c2d8f80949216b8c84df609cb7755208f4476cffd97e737abb",
+  vem_aqui: "8647d7f01a6f36c5addf0e1b6cffda22078930cf41007a5f5ce664811e2fa426",
+};
 // Em constante para a trava de participante real enxergá-la. É o trecho do texto
-// da página, aprovado como proposta, que descreve o que acontece enquanto o modelo
-// toca; ainda sujeito a revisão clínica e ética.
-const INSTRUCAO_DO_MODELO = "O celular fala a frase e, quando terminar, começa a gravar.";
+// da página que descreve o que acontece enquanto o modelo toca; texto novo de
+// 08/10/2026 (fluxo em dois toques), aprovado pela pesquisadora responsável em
+// 08/10/2026; a revisão clínica e ética continua aberta na parte das fonoaudiólogas.
+const INSTRUCAO_DO_MODELO = "O celular fala a frase. Quando ele estiver pronto, toque em Gravar.";
 
 // Textos da página, ainda sujeitos a revisão clínica e ética antes da primeira
-// família. O de antes de gravar pede repetição da frase ouvida, não nomeação das
-// figuras (outra tarefa); o de depois pede só conferir se gravou, sem convidar a
-// julgar a fala.
+// família. O de antes de gravar (08/10/2026, dois toques) pede repetição da
+// frase ouvida, não nomeação das figuras (outra tarefa); o de depois pede só
+// conferir se gravou, sem convidar a julgar a fala.
 const INSTRUCAO_ANTES_DE_GRAVAR =
-  "Toque em Ouvir e gravar. O celular fala a frase e, quando terminar, começa a gravar. " +
+  "Toque em Ouvir: o celular fala a frase. Quando ele estiver pronto, toque em Gravar. " +
   "Ele repete a frase do jeito dele. Toque em Parar quando ele terminar.";
 const INSTRUCAO_DEPOIS_DE_GRAVAR =
   "Ouça para conferir se gravou. Grave de novo só se algo atrapalhou: barulho forte, " +
   "interrupção ou falha do celular. Nunca por causa de como ele falou.";
-const ROTULO_DO_BOTAO = "Ouvir e gravar";
+// Rótulos dos dois botões e do estado de gravação (08/10/2026).
+const ROTULO_OUVIR = "Ouvir";
+const ROTULO_DO_BOTAO = "Gravar";
+const ROTULO_PARAR = "Parar";
+const ROTULO_GRAVANDO = "Gravando...";
+// Texto na tela enquanto grava (e durante a cauda depois de Parar).
+const INSTRUCAO_GRAVANDO = "Gravando. Toque em Parar quando ele terminar de falar.";
 
-// Qual voz toca. ENG### ouve a voz sintética provisória (`<rotulo>__VOZ_SINTETICA_
-// PROVISORIA.wav`); qualquer outro código, a definitiva de `ENDERECO_DOS_MODELOS`,
-// que está vazia, e por isso a trava de participante real já recusou antes de chegar
-// aqui. Sem arquivo, `tocarModelo("")` recusa: a página nunca grava sem o modelo tocar.
+// Qual voz toca: a que o receptor entregou para esta pessoa, já conferida
+// (`carregarVozModelo`), como endereço local do navegador (`blob:`). No servidor
+// local, ENG### recebe a voz sintética provisória (`<rotulo>__VOZ_SINTETICA_
+// PROVISORIA.wav`); no Apps Script, todo código recebe a definitiva. Sem a voz
+// carregada, devolve "" e `tocarModelo("")` recusa: a página nunca grava sem o
+// modelo tocar.
+let enderecosDaVozModelo = null;
 function enderecoDaFraseModelo(rotulo) {
-  if (ehEngenharia(PESSOA)) {
-    return enderecoDoModelo(PASTA_DA_VOZ_PROVISORIA,
-                            rotulo ? rotulo + SUFIXO_DA_VOZ_PROVISORIA : "");
+  return (rotulo && enderecosDaVozModelo && enderecosDaVozModelo[rotulo]) || "";
+}
+
+// Busca a voz-modelo no receptor uma vez por abertura da página, antes da agenda.
+async function carregarVozModelo() {
+  if (enderecosDaVozModelo) return;
+  const protocolo = await lerProtocolo();
+  const url = new URL(ENVIO, location.href);
+  url.searchParams.set("pessoa", PESSOA);
+  url.searchParams.set("segredo", SEGREDO);
+  url.searchParams.set("voz_modelo", "1");
+  const { corpo } = await consultarAgenda(url.href, PRAZO_DA_VOZ_MODELO_MS);
+  let arquivos;
+  try {
+    arquivos = await conferirVozModelo(corpo, {
+      rotulos: Object.keys(protocolo.frases_alvo || {}),
+      esperados: ehEngenharia(PESSOA) ? null : SHA256_DA_VOZ_MODELO,
+    });
+  } catch (e) {
+    if (e instanceof FalhaDaVozModelo) {
+      console.error("Voz-modelo: " + e.message);
+      throw new ErroDoReceptor("A frase de exemplo não carregou. Avise quem te enviou o link.");
+    }
+    throw e;
   }
-  return enderecoDoModelo(ENDERECO_DOS_MODELOS, rotulo);
+  const enderecos = {};
+  for (const [rotulo, { bytes }] of Object.entries(arquivos)) {
+    enderecos[rotulo] = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+  }
+  enderecosDaVozModelo = enderecos;
 }
 
 const parametros = new URLSearchParams(location.search);
@@ -296,6 +359,8 @@ const palco = document.getElementById("palco");
 const posicaoEl = document.getElementById("posicao");
 const instrucaoEl = document.getElementById("instrucao");
 const principal = document.getElementById("principal");
+const ouvirModelo = document.getElementById("ouvir_modelo");
+const toques = document.getElementById("toques");
 const apos = document.getElementById("apos");
 const condicoes = document.getElementById("condicoes");
 const avisoEl = document.getElementById("aviso");
@@ -322,8 +387,11 @@ function desenharPictogramas(posicao) {
   for (const s of simbolos) {
     const caixa = document.createElement("div");
     caixa.className = "picto";
-    if (/^\d+$/.test(String(s))) {
-      // Identificador ARASAAC: imagem local, servida do repositório.
+    if (/^\d+(_[a-z0-9]+)*$/.test(String(s))) {
+      // Identificador ARASAAC (só dígitos) ou variante local `<id>_<sufixo>`
+      // (adaptação do pictograma <id>, declarada no MANIFESTO.json com
+      // `adaptado_de` e sha256 próprio; ver config.yaml, `pictogramas`): imagem
+      // local, servida do repositório.
       //
       // Nunca da CDN em tempo de gravação: a família pode estar com sinal ruim,
       // e um estímulo que falha de carregar produz uma gravação sem estímulo,
@@ -401,13 +469,11 @@ function telaCheia(posicao, texto) {
   palco.innerHTML = "";
   posicaoEl.textContent = posicao || "";
   instrucaoEl.textContent = texto;
-  principal.classList.add("oculto");
+  esconderToques();
   apos.classList.add("oculto");
   condicoes.classList.add("oculto");
   const campos = document.getElementById("sessao_campos");
   if (campos) { campos.classList.add("oculto"); }
-  const regra = document.getElementById("regra_do_bloco");
-  if (regra) { regra.classList.add("oculto"); }
   if (typeof verFraseEl !== "undefined" && verFraseEl) { verFraseEl.classList.add("oculto"); }
 }
 
@@ -421,7 +487,7 @@ function faltaConfiguracao(rotulo, pictograma) {
     "Não consigo mostrar as figuras desta frase, então não dá para gravar agora. " +
     "Não é nada que você tenha feito — falta uma configuração do nosso lado. " +
     "Avise quem te enviou o link.";
-  principal.classList.add("oculto");
+  esconderToques();
   apos.classList.add("oculto");
   condicoes.classList.add("oculto");
   const campos = document.getElementById("sessao_campos");
@@ -523,24 +589,27 @@ async function carregarAgenda() {
     // Sem o rótulo da frase: o alvo em texto, na tela que o adolescente vê, faria
     // a tarefa virar leitura, e a página inteira é desenhada sem texto para evitar
     // isso. O alvo fica disponível para a família no botão "ver a frase".
-    `Sessão ${atual.sessao} · faltam ${resumo.faltam} de ${resumo.total} gravações`;
+    // O número é o da sessão de hoje, não o do estudo: "gravação 3 de 48"
+    // (pedido do pesquisador, 08/10/2026, 15h15).
+    `Sessão ${atual.sessao} · gravação ${resumo.sessao_atual.feitas + 1} de ${resumo.sessao_atual.total}`;
   instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
   condicoes.classList.add("oculto");
 
-  // O botão de gravar só aparece com a posição nova já carregada: antes dela,
+  // Posição nova: o modelo precisa tocar de novo antes de gravar.
+  zerarModeloDaTomada();
+  // Os botões só aparecem com a posição nova já carregada: antes dela,
   // `atual` ainda é a posição enviada, e uma gravação começada nessa janela
   // tocaria o modelo de uma frase e sairia rotulada com a anterior.
-  if (condicoesDaSessao) principal.classList.remove("oculto");
+  if (condicoesDaSessao) mostrarToques();
 
   // Os campos da sessão aparecem uma vez, antes da primeira gravação dela.
   if (!condicoesDaSessao) {
     document.getElementById("sessao_campos").classList.remove("oculto");
-    principal.classList.add("oculto");
+    esconderToques();
     // As figuras ficam ocultas enquanto a família responde às perguntas, para o
     // adolescente não ver o alvo e falar antes de existir gravação.
     palco.classList.add("oculto");
     // a regra do bloco só vale quando há bloco: não antes de a sessão abrir
-    document.getElementById("regra_do_bloco").classList.add("oculto");
     instrucaoEl.textContent =
       "Antes de começar, quatro perguntas rápidas sobre hoje.";
     // Se a página for recarregada no meio da sessão, as respostas somem da memória;
@@ -615,9 +684,8 @@ document.getElementById("comecar_sessao").addEventListener("click", async () => 
   // Com a chave ligada, o silêncio é medido aqui, com as figuras ainda ocultas e
   // o botão de gravar ainda escondido. Desligada, nada é aguardado.
   const textoDoAmbiente = AMBIENTE_NA_SESSAO ? await medirAmbienteNaAbertura() : "";
-  document.getElementById("regra_do_bloco").classList.remove("oculto");
   palco.classList.remove("oculto");
-  principal.classList.remove("oculto");
+  mostrarToques();
   liberarBotaoDaFrase(atual);
   // troca a instrução das perguntas pela de gravar
   instrucaoEl.textContent =
@@ -645,13 +713,109 @@ async function medirAmbienteNaAbertura() {
   return ambienteDaSessao.avisos.map((c) => TEXTOS_DOS_AVISOS_DO_AMBIENTE[c]).join(" ");
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Os dois toques: Ouvir, depois Gravar (e Parar)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Decisão do pesquisador de 08/10/2026 (05h41 a 05h46): "ele ouve, aí a família
+// clica em gravar". Ouvir toca a frase-modelo (os pictogramas ficam na tela);
+// Gravar só destrava depois de o modelo tocar nesta tomada; tocar Ouvir de novo
+// é permitido e contado. O que a página mede e envia por tomada: o intervalo
+// entre o fim do modelo e o toque em Gravar, o intervalo até a gravação começar
+// de fato e quantas vezes o modelo tocou (captura.js, `iniciarTomada`).
+//
+// O registro do modelo desta tomada ({ fim_em, vezes }); null antes do primeiro
+// Ouvir e depois de cada tomada confirmada ou descartada. É ele que destrava
+// Gravar: a página nunca grava sem o modelo ter tocado.
+let modeloDaTomada = null;
+
+// Os dois botões aparecem e somem juntos; Gravar só fica ativo com o modelo
+// tocado e nada em curso.
+function mostrarToques() {
+  toques.classList.remove("oculto");
+  atualizarBotoesDaTomada();
+}
+function esconderToques() { toques.classList.add("oculto"); }
+function atualizarBotoesDaTomada() {
+  if (gravando) return;            // durante a gravação quem manda é o Parar
+  ouvirModelo.disabled = false;
+  principal.textContent = ROTULO_DO_BOTAO;
+  principal.disabled = !(MODELO_PRE_GRAVADO ? modeloDaTomada : true);
+}
+// Uma tomada nova (posição nova, "Gravar de novo", recusa): o modelo precisa
+// tocar de novo antes de gravar.
+function zerarModeloDaTomada() {
+  modeloDaTomada = null;
+  atualizarBotoesDaTomada();
+}
+
+ouvirModelo.addEventListener("click", async () => {
+  if (gravando || !MODELO_PRE_GRAVADO) return;
+  // elemento de áudio destravado no toque, quando há espera antes do modelo
+  let audioDoModelo;
+  ouvirModelo.disabled = true;
+  principal.disabled = true;
+  try {
+    // A frase revelada fecha enquanto o modelo toca, pela mesma razão de
+    // sempre: o alvo escrito não fica na tela do adolescente.
+    esconderFrase();
+    // O ritmo vem do protocolo; sem ele, só a bancada toca (com o de bancada).
+    // Participante real sem ritmo definido já foi recusado pela trava; esta
+    // conferência repete a recusa aqui, para a página nunca inventar um valor.
+    const ritmo = ritmoDaSessao(protocoloLido, ehEngenharia(PESSOA));
+    if (!ritmo) {
+      aviso("Esta página ainda não está liberada para gravar participantes. " +
+            "Avise quem te enviou o link.", true);
+      return;
+    }
+    // texto do modelo ainda sujeito a revisão clínica e ética
+    instrucaoEl.textContent = INSTRUCAO_DO_MODELO;
+    // Intervalo mínimo entre a gravação confirmada e a próxima frase-modelo.
+    const falta = confirmadaEm === null ? 0
+      : ritmo.intervalo_ate_proxima_frase_ms - (Date.now() - confirmadaEm);
+    if (falta > 0) {
+      // A espera tira o `play()` do modelo do gesto do toque, e o Safari do iOS
+      // pode recusá-lo. O elemento de áudio é destravado aqui, ainda dentro do
+      // gesto e antes do `await`; o modelo toca nele depois da espera. Sem
+      // espera, `tocarModelo` já roda dentro do gesto e nada muda.
+      audioDoModelo = destravarModelo(enderecoDaFraseModelo(atual && atual.rotulo));
+      await new Promise((r) => setTimeout(r, falta));
+    }
+    // fechar microfone → modelo até o fim; o fim e a contagem ficam guardados
+    const tocado = await tocarModeloDaTomada({
+      microfone, fechar: fecharMicrofone, modeloAnterior: modeloDaTomada,
+      // um arquivo por frase, entregue pelo receptor e conferido, da voz certa
+      // com espera, no elemento destravado no toque; sem espera, num elemento novo
+      tocar: () => (audioDoModelo
+        ? tocarModelo(enderecoDaFraseModelo(atual && atual.rotulo), { criarAudio: audioDoModelo })
+        : tocarModelo(enderecoDaFraseModelo(atual && atual.rotulo))),
+    });
+    microfone = tocado.microfone;
+    modeloDaTomada = tocado.modelo;
+    instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
+    aviso("");
+  } catch (e) {
+    instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
+    if (e instanceof FalhaDoModelo) {
+      // Modelo que não tocou até o fim: Gravar continua travado. O diagnóstico
+      // vai para o console; a família recebe o que fazer.
+      console.error("Modelo pré-gravado: " + e.message);
+      aviso("Não consegui tocar a frase de exemplo. Tente de novo ou avise quem te enviou o link.", true);
+      return;
+    }
+    aviso("Não consegui tocar a frase de exemplo. Tente de novo.", true);
+  } finally {
+    atualizarBotoesDaTomada();
+  }
+});
+
 principal.addEventListener("click", async () => {
   if (gravando) {          // parar
     let resultado;
     // com a cauda, a gravação segue até o fim dela e o botão fica travado
     if (CAUDA_APOS_PARAR) {
       principal.disabled = true;
-      principal.textContent = "Gravando…";
+      principal.textContent = ROTULO_GRAVANDO;
       resultado = await pararComCauda(gravando, CAUDA_MS);
       principal.disabled = false;
     } else {
@@ -670,7 +834,7 @@ principal.addEventListener("click", async () => {
     // Parou de gravar: a família pode conferir de novo, antes de enviar.
     liberarBotaoDaFrase(atual);
     principal.textContent = ROTULO_DO_BOTAO;
-    principal.classList.add("oculto");
+    esconderToques();
     apos.classList.remove("oculto");
     condicoes.classList.remove("oculto");   // só agora: o fato já aconteceu
     // Texto ainda sujeito a revisão clínica e ética. Pede só que se confira se
@@ -681,85 +845,48 @@ principal.addEventListener("click", async () => {
           ? AVISO_DE_SATURACAO : "");
     return;
   }
-  // elemento de áudio destravado no toque, quando há espera antes do modelo
-  let audioDoModelo;
+  // gravar: só com o modelo tocado nesta tomada (o botão já estava travado sem
+  // ele; a conferência de `iniciarTomada` repete a recusa, contra corrida)
+  if (ouvirModelo.disabled) return;   // o modelo está tocando
   try {
     limparMarcaDaGravacao();
     // Antes de abrir o microfone, o botão "ver a frase" some e a frase revelada
     // fecha. A ordem importa: travar depois de abrir o microfone deixaria uma
     // janela em que o alvo está na tela com a captura ativa.
     travarFraseDuranteGravacao();
-    // O ritmo vem do protocolo; sem ele, só a bancada grava (com o de bancada).
-    // Participante real sem ritmo definido já foi recusado pela trava; esta
-    // conferência repete a recusa aqui, para a página nunca inventar um valor.
-    const ritmo = ritmoDaSessao(protocoloLido, ehEngenharia(PESSOA));
-    if (!ritmo) {
-      aviso("Esta página ainda não está liberada para gravar participantes. " +
-            "Avise quem te enviou o link.", true);
-      liberarBotaoDaFrase(atual);
-      return;
-    }
-    if (MODELO_PRE_GRAVADO) {
-      // texto do modelo ainda sujeito a revisão clínica e ética
-      principal.disabled = true;
-      instrucaoEl.textContent = INSTRUCAO_DO_MODELO;
-      // Intervalo mínimo entre a gravação confirmada e a próxima frase-modelo.
-      // Com o modelo desligado, quem dá o ritmo é a família, e nada muda.
-      const falta = confirmadaEm === null ? 0
-        : ritmo.intervalo_ate_proxima_frase_ms - (Date.now() - confirmadaEm);
-      if (falta > 0) {
-        // A espera tira o `play()` do modelo do gesto do toque, e o Safari do iOS
-        // pode recusá-lo. O elemento de áudio é destravado aqui, ainda dentro do
-        // gesto e antes do `await`; o modelo toca nele depois da espera. Sem
-        // espera, `tocarModelo` já roda dentro do gesto e nada muda.
-        audioDoModelo = destravarModelo(enderecoDaFraseModelo(atual && atual.rotulo));
-        await new Promise((r) => setTimeout(r, falta));
-      }
-    }
-    // A ordem (fechar microfone → modelo até o fim → folga → abrir → gravar) está
-    // em `iniciarTomada`. Com o modelo desligado, ela só abre o microfone se
-    // preciso e grava.
+    principal.disabled = true;
+    ouvirModelo.disabled = true;
     const tomada = await iniciarTomada({
-      modeloLigado: MODELO_PRE_GRAVADO, microfone,
-      abrir: abrirMicrofone, fechar: fecharMicrofone,
-      folgaMs: ritmo.folga_apos_modelo_ms,
-      // um arquivo por frase (captura.js, `enderecoDoModelo`), da voz certa
-      // com espera, no elemento destravado no toque; sem espera, num elemento novo
-      tocar: () => (audioDoModelo
-        ? tocarModelo(enderecoDaFraseModelo(atual && atual.rotulo), { criarAudio: audioDoModelo })
-        : tocarModelo(enderecoDaFraseModelo(atual && atual.rotulo))),
+      modeloLigado: MODELO_PRE_GRAVADO, microfone, abrir: abrirMicrofone,
+      modelo: modeloDaTomada,
       iniciarGravacao: (mic) => {
         taxa = mic.taxa;
-    // Pré-rolagem: grava primeiro, mostra o pictograma depois. Com o estímulo
-    // antes, o silêncio inicial volta a ter duração desconhecida, e o consenso
-    // pode pôr o onset dentro dele. O palco fica vazio durante a pré-rolagem de
-    // propósito: garante que nenhum movimento de busca articulatória começa antes
-    // de t = PRE_ROLAGEM_MS, porque a pessoa ainda não viu o que dizer.
-        palco.innerHTML = "";
+        // Pré-rolagem (captura.js, PRE_ROLAGEM_MS): com valor acima de zero, o
+        // palco fica vazio até ela terminar; com zero (desde 08/10/2026, dois
+        // toques), os pictogramas não saem da tela e a gravação começa no
+        // toque. O mecanismo fica, para o envio dizer qual valor valeu.
+        if (PRE_ROLAGEM_MS > 0) palco.innerHTML = "";
         return gravadorComPreRolagem(
-          mic.fluxo, mic.contexto, () => desenharPictogramas(atual));
+          mic.fluxo, mic.contexto,
+          () => { if (PRE_ROLAGEM_MS > 0) desenharPictogramas(atual); });
       },
     });
-    const gravacaoIniciada = tomada.gravando;
-    folgaDaTomada = tomada.folga;
+    intervaloDaTomada = tomada.intervalo;
     microfone = tomada.microfone;
-    gravando = gravacaoIniciada;
+    gravando = tomada.gravando;
     marcarTomadaEmCurso();
-    if (MODELO_PRE_GRAVADO) principal.disabled = false;
-    principal.textContent = "Parar";
-    instrucaoEl.textContent = "Gravando. Toque em Parar quando ele terminar de falar.";
+    principal.disabled = false;
+    principal.textContent = ROTULO_PARAR;
+    instrucaoEl.textContent = INSTRUCAO_GRAVANDO;
     aviso("");
   } catch (e) {
-    if (MODELO_PRE_GRAVADO) {
-      // só com o modelo ligado: destrava o botão e desfaz o texto do modelo
-      principal.disabled = false;
-      instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
-    }
+    liberarBotaoDaFrase(atual);
+    instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
+    atualizarBotoesDaTomada();
     if (e instanceof FalhaDoModelo) {
-      // Modelo que não tocou até o fim: nada foi gravado. O diagnóstico vai
-      // para o console; a família recebe o que fazer.
+      // Gravar sem o modelo tocado nesta tomada: nada foi gravado.
       console.error("Modelo pré-gravado: " + e.message);
-      aviso("Não consegui tocar a frase de exemplo, então não gravei. Avise quem te enviou o link.", true);
+      aviso("Toque em Ouvir antes de gravar.", true);
       return;
     }
     aviso("Não consegui abrir o microfone. Permita o acesso e tente de novo.", true);
@@ -793,9 +920,11 @@ let tentativasDaGravacao = 1;
 const ARMAZEM_DO_CONTADOR = armazemDoNavegador();
 let chaveDoContadorAtual = "";
 
-// Ritmo: a folga medida da última tomada vai no envio; o instante da última
-// confirmação conta o intervalo mínimo até a próxima frase tocar.
-let folgaDaTomada = null;
+// Ritmo: o intervalo medido da última tomada (fim do modelo até o toque em
+// Gravar e até a gravação começar, e quantas vezes o modelo tocou) vai no
+// envio; o instante da última confirmação conta o intervalo mínimo até a
+// próxima frase tocar.
+let intervaloDaTomada = null;
 let confirmadaEm = null;
 // Cauda e saturação da última tomada, para o envio (nulas com as chaves desligadas).
 let caudaDaTomada = null;
@@ -887,7 +1016,9 @@ document.getElementById("regravar").addEventListener("click", () => {
   apos.classList.add("oculto");
   condicoes.classList.add("oculto");
   limparMarcaDaGravacao();
-  principal.classList.remove("oculto");
+  // Tomada nova: o modelo toca de novo antes de gravar (Gravar fica travado).
+  zerarModeloDaTomada();
+  mostrarToques();
   // A gravação foi descartada: a instrução volta a ser a de gravar, não a de ouvir.
   instrucaoEl.textContent = INSTRUCAO_ANTES_DE_GRAVAR;
   aviso("");
@@ -922,9 +1053,11 @@ document.getElementById("enviar").addEventListener("click", async () => {
       // a marca de onde o silêncio de duração conhecida termina viaja com o áudio
       preRolagemMs: preRolagem && preRolagem.ms,
       preRolagemMedidaMs: preRolagem && preRolagem.medida,
-      // a folga entre o fim da frase-modelo e o início da gravação, nominal e medida
-      folgaAposModeloMs: folgaDaTomada ? folgaDaTomada.ms : undefined,
-      folgaAposModeloMedidaMs: folgaDaTomada ? folgaDaTomada.medida_ms : undefined,
+      // dois toques: o intervalo entre o fim da frase-modelo e o toque em Gravar,
+      // o intervalo até a gravação começar e quantas vezes o modelo tocou
+      intervaloModeloGravarMs: intervaloDaTomada ? intervaloDaTomada.toque_ms : undefined,
+      intervaloModeloGravacaoMs: intervaloDaTomada ? intervaloDaTomada.gravacao_ms : undefined,
+      modeloTocadoVezes: intervaloDaTomada ? intervaloDaTomada.vezes : undefined,
       // a cauda depois de Parar, nominal e medida, e a saturação medida
       caudaMs: caudaDaTomada ? caudaDaTomada.ms : undefined,
       caudaMedidaMs: caudaDaTomada ? caudaDaTomada.medida_ms : undefined,
@@ -1027,9 +1160,10 @@ async function reabrirPerguntasDaSessao() {
 // Trava de participante real. O marcador "[A DEFINIR" da regra do bloco não pode
 // ir para família real. Antes de abrir a agenda, um pseudônimo que não é de
 // bancada (`ENG###`) passa pela trava de `trava_de_participante.js`: com marcador
-// à vista, pictograma provisório ou `subconjunto_consistencia` ausente no
-// `protocolo.json`, a sessão não abre, e o motivo aparece em PT-BR. `ENG###`
-// segue direto.
+// à vista, pictograma provisório, `subconjunto_consistencia` ausente ou item em
+// `coleta.validacao_pendente` (pictogramas candidatos e subconjunto proposto,
+// aguardando as fonoaudiólogas) no `protocolo.json`, a sessão não abre, e o
+// motivo aparece em PT-BR. `ENG###` segue direto.
 function textosDaPagina() {
   // o que a família pode ver: o corpo sem os scripts (comentário HTML não é texto)
   const copia = document.body.cloneNode(true);
@@ -1049,7 +1183,8 @@ async function liberadaParaEstaPessoa() {
     pessoa: PESSOA, grupo: parametros.get("g") || "",
     textosVisiveis: textosDaPagina(), protocolo,
     // sem a voz-modelo definitiva, participante real não grava
-    vozModeloDefinitiva: Boolean(ENDERECO_DOS_MODELOS),
+    vozModeloDefinitiva: VOZ_MODELO_PELO_RECEPTOR &&
+      Object.keys(SHA256_DA_VOZ_MODELO).length === 12,
   });
   if (!motivos.length) return true;
   console.error("Trava de participante real: " + motivos.join(" · "));
@@ -1103,7 +1238,8 @@ if (!PESSOA || !ENVIO || !SEGREDO) {
     "às vezes o aplicativo de mensagem corta o endereço.");
 } else {
   // quando o receptor explica (link inválido, por exemplo), a família lê o motivo
-  liberadaParaEstaPessoa().then((liberada) => liberada && carregarAgenda())
+  liberadaParaEstaPessoa()
+    .then((liberada) => liberada && carregarVozModelo().then(carregarAgenda))
     .catch(naoCarregouASessao);
 }
 </script>

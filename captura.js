@@ -21,19 +21,33 @@ export const FLAGS_DE_CAPTURA = {
   autoGainControl: false,
 };
 
-// Pré-rolagem: a gravação começa antes de o estímulo aparecer, para que o
-// silêncio inicial tenha duração conhecida e nenhum movimento de busca
-// articulatória possa começar antes de PRE_ROLAGEM_MS. Com silêncio inicial de
-// duração variável, o consenso entre repetições pode situar o início da fala
-// dentro do silêncio. A ordem de processamento é: pré-rolagem, corte por
-// energia, consenso. A instrução à família não muda.
+// Pré-rolagem: a gravação começava 1 s antes de o estímulo aparecer, com a
+// tela vazia, para que o silêncio inicial tivesse duração conhecida e nenhum
+// movimento de busca articulatória pudesse começar antes de PRE_ROLAGEM_MS.
+// Esse desenho supunha que a pessoa ainda não tinha visto o que dizer.
+//
+// Desde 08/10/2026 (decisão do pesquisador, 05h41 a 05h46: fluxo em dois
+// toques, Ouvir e depois Gravar) a pessoa já ouviu a frase-modelo quando a
+// família toca em Gravar, e pode começar a falar a qualquer momento; a
+// pré-rolagem não garantia mais silêncio inicial (o campo 11 do pré-registro
+// já declarava isso). A análise do início não depende dela: o que
+// `inconsistencia/onset.py` (onset_por_consenso) exige a montante é o corte de
+// silêncio por energia (src/preprocess.py, cortar_silencio), que remove o
+// silêncio inicial de qualquer duração; nenhum módulo de análise lê
+// `pre_rolagem_ms`, que é só descrição da tomada no sidecar. Por isso o
+// valor passou a 0: a gravação começa no toque em Gravar e os pictogramas não
+// saem da tela. O mecanismo (`gravadorComPreRolagem`) e o campo do envio
+// continuam, para que gravações antigas (1 s) e novas (0) sejam distinguíveis.
+// O que substitui a duração conhecida do silêncio é o intervalo medido entre o
+// fim da frase-modelo e o toque em Gravar (`iniciarTomada`).
 //
 // Cauda: com a chave `CAUDA_APOS_PARAR` da página ligada, a gravação continua
 // CAUDA_MS depois do toque em Parar (`pararComCauda`), porque a família tende a
 // tocar Parar colado ao fim da fala e o fim da produção pode ficar de fora. A
-// cauda só acrescenta áudio; não corta nada. O valor é provisório e a chave
-// está desligada até o valor ser escolhido.
-export const PRE_ROLAGEM_MS = 1000;
+// cauda só acrescenta áudio; não corta nada. Ligada em 08/10/2026 com 500 ms
+// (decisão do pesquisador, 05h41 a 05h46); a tela mostra "Gravando..." durante
+// a cauda. O corte de silêncio da análise continua depois.
+export const PRE_ROLAGEM_MS = 0;
 export const CAUDA_MS = 500;
 
 export async function abrirMicrofone() {
@@ -350,7 +364,8 @@ export function paraBase64(buffer) {
 export function montarEnvio({ pessoa, rotulo, sessao, repeticao, conjunto, grupo,
                               condicoes, wavBase64, segredo,
                               preRolagemMs, preRolagemMedidaMs,
-                              folgaAposModeloMs, folgaAposModeloMedidaMs,
+                              intervaloModeloGravarMs, intervaloModeloGravacaoMs,
+                              modeloTocadoVezes,
                               caudaMs, caudaMedidaMs, saturacao, ambienteDaSessao,
                               tentativas, motivosDasRegravacoes }) {
   // O código do participante é conferido também no navegador, para que um nome
@@ -386,10 +401,15 @@ export function montarEnvio({ pessoa, rotulo, sessao, repeticao, conjunto, grupo
     // garantia de silêncio inicial de duração conhecida.
     pre_rolagem_ms: preRolagemMs,
     pre_rolagem_medida_ms: preRolagemMedidaMs,
-    // Folga entre o fim da frase-modelo e o início da gravação, nominal e
-    // medida. `undefined` indica tomada sem modelo tocado.
-    folga_apos_modelo_ms: folgaAposModeloMs,
-    folga_apos_modelo_medida_ms: folgaAposModeloMedidaMs,
+    // Fluxo em dois toques (08/10/2026): o intervalo entre o fim da última
+    // frase-modelo tocada e o toque em Gravar, o intervalo até a gravação
+    // começar de fato (inclui a abertura do microfone) e quantas vezes a
+    // família tocou em Ouvir nesta tomada. `undefined` indica tomada sem
+    // modelo (bancada com o modelo desligado) ou página antiga, que mandava
+    // `folga_apos_modelo_ms` em vez destes.
+    intervalo_modelo_gravar_ms: intervaloModeloGravarMs,
+    intervalo_modelo_gravacao_ms: intervaloModeloGravacaoMs,
+    modelo_tocado_vezes: modeloTocadoVezes,
     // Cauda depois de Parar, nominal e medida. `undefined` indica gravação
     // parada no toque, sem cauda.
     cauda_ms: caudaMs,
@@ -475,6 +495,82 @@ export async function consultarAgenda(url, prazoMs = PRAZO_DA_AGENDA_MS) {
 }
 
 // ---------------------------------------------------------------------------
+// Voz-modelo servida pelo receptor (decisão do pesquisador de 16/11/2026).
+//
+// A frase-modelo é a voz de uma fonoaudióloga da equipe. Publicada ao lado da
+// página, no GitHub Pages, ficaria ao alcance de qualquer pessoa com o endereço.
+// Por isso ela vem do receptor, no mesmo GET da agenda, só para um link válido
+// (`voz_modelo=1`), e a página confere cada arquivo antes de tocar:
+//   · o sha256 dos bytes recebidos tem de ser o que o receptor declarou (o
+//     arquivo chegou inteiro);
+//   · para participante, tem de ser também o registrado na página
+//     (`SHA256_DA_VOZ_MODELO`, copiado de `voz_modelo/MANIFESTO.json`): a família
+//     ouve o estímulo registrado, e não outro arquivo que alguém pôs na pasta.
+// A bancada `ENG###` dispensa a segunda conferência: no servidor local ela ouve a
+// voz sintética provisória.
+// Falta de uma frase, base64 inválido ou sha256 diferente recusam a sessão com
+// o nome da frase; a página nunca grava sem o modelo tocar.
+
+export class FalhaDaVozModelo extends Error {}
+
+// Prazo da consulta à voz-modelo: doze arquivos de uns 70 kB em base64 numa
+// resposta só, mais o início lento do Apps Script.
+export const PRAZO_DA_VOZ_MODELO_MS = 60000;
+
+export function base64ParaBytes(texto) {
+  let bin;
+  try {
+    bin = atob(String(texto || ""));
+  } catch (_) {
+    return null;
+  }
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+export async function sha256Hex(bytes, subtle = globalThis.crypto && globalThis.crypto.subtle) {
+  if (!subtle) throw new FalhaDaVozModelo("o navegador não confere arquivos (sem crypto.subtle)");
+  const d = new Uint8Array(await subtle.digest("SHA-256", bytes));
+  return Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// `corpo` é a resposta do receptor; `rotulos`, as frases do protocolo;
+// `esperados`, o sha256 registrado de cada frase, ou null na bancada.
+// Devolve `{ <rotulo>: { bytes, sha256 } }` ou lança FalhaDaVozModelo.
+export async function conferirVozModelo(corpo, { rotulos, esperados = null,
+                                                hash = sha256Hex } = {}) {
+  if (!corpo || corpo.erro) {
+    throw new FalhaDaVozModelo((corpo && corpo.erro) || "o receptor não mandou a frase de exemplo");
+  }
+  const voz = corpo.voz_modelo;
+  if (!voz || typeof voz !== "object") {
+    throw new FalhaDaVozModelo("o receptor não mandou a frase de exemplo");
+  }
+  if (!Array.isArray(rotulos) || !rotulos.length) {
+    throw new FalhaDaVozModelo("o protocolo não tem frases");
+  }
+  const saida = {};
+  for (const rotulo of rotulos) {
+    const item = voz[rotulo];
+    const bytes = item && base64ParaBytes(item.wav_base64);
+    if (!bytes || !bytes.length) {
+      throw new FalhaDaVozModelo(`a frase de exemplo "${rotulo}" não chegou`);
+    }
+    const calculado = await hash(bytes);
+    if (calculado !== String(item.sha256 || "").toLowerCase()) {
+      throw new FalhaDaVozModelo(`a frase de exemplo "${rotulo}" chegou incompleta`);
+    }
+    if (esperados && esperados[rotulo] !== calculado) {
+      throw new FalhaDaVozModelo(
+        `a frase de exemplo "${rotulo}" não é a registrada para o estudo`);
+    }
+    saida[rotulo] = { bytes, sha256: calculado };
+  }
+  return saida;
+}
+
+// ---------------------------------------------------------------------------
 // Frase-modelo gravada, tocada pela página.
 //
 // A chave é `MODELO_PRE_GRAVADO`, em index.html, e está ligada. Ligada, a página
@@ -488,36 +584,38 @@ export async function consultarAgenda(url, prazoMs = PRAZO_DA_AGENDA_MS) {
 // fornecido num endereço configurado. Sem endereço, ou se o arquivo não tocar
 // até o fim, a página recusa gravar, como faz com um pictograma que não carrega.
 //
-// A ordem de cada tomada, verificada pelos testes da página:
-//   1. se houver microfone aberto, ele é fechado;
-//   2. o modelo toca até o evento `ended`;
-//   3. espera-se a folga (`FOLGA_APOS_MODELO_MS`);
-//   4. só então o microfone abre e a gravação, com pré-rolagem, começa.
+// A ordem de cada tomada, em dois toques da família (decisão do pesquisador
+// de 08/10/2026, 05h41 a 05h46), verificada pelos testes da página:
+//   Ouvir  1. se houver microfone aberto, ele é fechado;
+//          2. o modelo toca até o evento `ended` (`tocarModeloDaTomada`); o
+//             instante do fim fica guardado e a contagem de toques sobe;
+//             tocar de novo é permitido e contado;
+//   Gravar 3. só com o modelo tocado pelo menos uma vez nesta tomada;
+//          4. o microfone abre e a gravação começa (`iniciarTomada`); o
+//             intervalo entre o fim do modelo e o toque, e até a gravação
+//             começar de fato, vai no envio.
 // Com `echoCancellation: false`, qualquer som do alto-falante com a captura
 // ativa entraria no arquivo; por isso o modelo toca com o microfone fechado.
 //
-// A folga é provisória e não foi medida: `ended` indica que o elemento de áudio
-// terminou, não que o alto-falante silenciou, e a latência de saída em fone
-// Bluetooth passa de 100 ms. 300 ms é margem de bancada, a medir nos aparelhos.
-// A pré-rolagem de 1 s vem depois dela.
-export const FOLGA_APOS_MODELO_MS = 300;
+// Até 07/10/2026 um toque só fazia tudo, com uma folga automática
+// (`folga_apos_modelo_ms`, 500 ms no protocolo e 300 ms na bancada) entre o
+// fim do modelo e a abertura do microfone. Com o toque em Gravar separado, a
+// folga é a da família, medida; a constante e o campo saíram.
 
-// Ritmo da sessão: a folga depois da frase-modelo e o intervalo mínimo entre uma
-// gravação confirmada e a próxima frase. Os valores são clínicos e vêm de
-// `coleta.ritmo` no config, exportado para o `protocolo.json`; enquanto não forem
-// números, a trava de participante real recusa a sessão. A bancada `ENG###` usa
-// os valores de bancada abaixo, que não são proposta de valor clínico.
-export const RITMO_DE_BANCADA = { folga_apos_modelo_ms: FOLGA_APOS_MODELO_MS,
-                                  intervalo_ate_proxima_frase_ms: 0 };
+// Ritmo da sessão: o intervalo mínimo entre uma gravação confirmada e a próxima
+// frase-modelo. O valor vem de `coleta.ritmo` no config, exportado para o
+// `protocolo.json`; enquanto não for número, a trava de participante real
+// recusa a sessão. A bancada `ENG###` usa o valor de bancada abaixo, que não
+// é proposta de valor clínico.
+export const RITMO_DE_BANCADA = { intervalo_ate_proxima_frase_ms: 0 };
 
-// O ritmo que vale para esta pessoa: o do protocolo quando os dois valores são
-// números; senão o de bancada, só para `ENG###`; senão `null` (participante real
-// sem ritmo definido não chega a gravar, porque a trava recusa antes).
+// O ritmo que vale para esta pessoa: o do protocolo quando o valor é número;
+// senão o de bancada, só para `ENG###`; senão `null` (participante real sem
+// ritmo definido não chega a gravar, porque a trava recusa antes).
 export function ritmoDaSessao(protocolo, bancada) {
   if (!ritmoSemValorFixado(protocolo).length) {
     const r = protocolo.coleta.ritmo;
-    return { folga_apos_modelo_ms: r.folga_apos_modelo_ms,
-             intervalo_ate_proxima_frase_ms: r.intervalo_ate_proxima_frase_ms,
+    return { intervalo_ate_proxima_frase_ms: r.intervalo_ate_proxima_frase_ms,
              origem: "protocolo" };
   }
   return bancada ? { ...RITMO_DE_BANCADA, origem: "bancada" } : null;
@@ -554,7 +652,7 @@ export function tocarModelo(url, { criarAudio = (u) => new Audio(u),
       rejeitar(new FalhaDoModelo("o arquivo do modelo não carregou"));
     });
     // No iOS, `play()` só é aceito dentro do gesto do usuário; por isso esta
-    // função é chamada no toque em Gravar, antes de qualquer `await`, ou recebe
+    // função é chamada no toque em Ouvir, antes de qualquer `await`, ou recebe
     // em `criarAudio` um elemento já destravado no toque (`destravarModelo`),
     // quando a página espera o intervalo entre frases antes de tocar.
     Promise.resolve(som.play()).catch((e) => {
@@ -693,34 +791,47 @@ export function fecharMicrofone(microfone) {
   if (microfone.contexto && microfone.contexto.close) microfone.contexto.close();
 }
 
-const esperarMs = (ms) => new Promise((r) => setTimeout(r, ms));
+// O toque em Ouvir. Fecha o microfone se estiver aberto (o modelo toca sem
+// captura ativa), toca o modelo até o fim e devolve o microfone (sempre null
+// depois) e o instante em que o modelo terminou, no relógio de `agora`. Se o
+// modelo falhar, nada é aberto nem gravado, e a falha sobe (`FalhaDoModelo`).
+// `modeloAnterior` é o registro da tomada em curso ({ fim_em, vezes }), ou
+// null na primeira vez; o devolvido tem `vezes` somado.
+export async function tocarModeloDaTomada({ microfone, fechar, tocar,
+                                           modeloAnterior = null,
+                                           agora = () => Date.now() }) {
+  if (microfone) { fechar(microfone); microfone = null; }
+  await tocar();
+  const vezes = ((modeloAnterior && modeloAnterior.vezes) || 0) + 1;
+  return { microfone, modelo: { fim_em: agora(), vezes } };
+}
 
-// Começa uma tomada. Com o modelo desligado, abre o microfone se necessário e
-// começa a gravar. Com o modelo ligado, segue a ordem descrita acima.
+// O toque em Gravar. Com o modelo desligado (bancada), abre o microfone se
+// necessário e começa a gravar. Com o modelo ligado, exige que o modelo tenha
+// tocado nesta tomada (`modelo` de `tocarModeloDaTomada`): sem isso recusa com
+// `FalhaDoModelo`, e a página nunca grava sem o modelo ter tocado. O microfone
+// abre aqui (ele foi fechado antes de o modelo tocar) e a gravação começa.
 //
-// Com o modelo ligado, devolve também a folga: a nominal e a medida entre o fim
-// do modelo e o início da gravação, que inclui a abertura do microfone. É a
-// folga efetiva que a criança teve, e vai no envio de cada gravação.
-export async function iniciarTomada({ modeloLigado, microfone, abrir, fechar,
-                                      tocar, iniciarGravacao,
-                                      esperar = esperarMs,
-                                      folgaMs = FOLGA_APOS_MODELO_MS,
+// Devolve também o intervalo: entre o fim do modelo e o toque em Gravar
+// (`toque_ms`, o tempo que a família deu ao adolescente), e entre o fim do
+// modelo e a gravação começar de fato (`gravacao_ms`, inclui a abertura do
+// microfone), além de quantas vezes o modelo tocou. Os três vão no envio.
+export async function iniciarTomada({ modeloLigado, microfone, abrir,
+                                      iniciarGravacao, modelo = null,
                                       agora = () => Date.now() }) {
   if (!modeloLigado) {
     if (!microfone) microfone = await abrir();
-    return { microfone, gravando: iniciarGravacao(microfone), folga: null };
+    return { microfone, gravando: iniciarGravacao(microfone), intervalo: null };
   }
-  // 1. microfone fechado antes de o modelo tocar
-  if (microfone) { fechar(microfone); microfone = null; }
-  // 2. o modelo toca até o fim; se falhar, nada é aberto nem gravado
-  await tocar();
-  const fimDoModelo = agora();
-  // 3. folga para o alto-falante silenciar
-  await esperar(folgaMs);
-  // 4. só agora o microfone abre e a gravação começa
-  microfone = await abrir();
-  const folga = { ms: folgaMs, medida_ms: Math.round(agora() - fimDoModelo) };
-  return { microfone, gravando: iniciarGravacao(microfone), folga };
+  if (!modelo || typeof modelo.fim_em !== "number" || !(modelo.vezes >= 1)) {
+    throw new FalhaDoModelo("a frase-modelo ainda não tocou nesta tomada");
+  }
+  const toque = agora();
+  if (!microfone) microfone = await abrir();
+  const intervalo = { toque_ms: Math.round(toque - modelo.fim_em),
+                      gravacao_ms: Math.round(agora() - modelo.fim_em),
+                      vezes: modelo.vezes };
+  return { microfone, gravando: iniciarGravacao(microfone), intervalo };
 }
 
 // Depois de Parar: com o modelo ligado, o microfone fecha, para que o modelo

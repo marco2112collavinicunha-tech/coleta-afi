@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AFI · diagnóstico do microfone (engenharia)</title>
+<!--
+  Diagnóstico do microfone: mostra o que a página pede ao microfone
+  e o que o navegador aplicou (track.getSettings()).
+  Só ENG###: P### é recusado antes de o microfone abrir. Nada é gravado nem enviado.
+  A página das famílias (index.html) não chama esta tela e não muda com ela.
+  Uso: /diagnostico?p=ENG001 no servidor local (scripts/servidor_coleta.py).
+-->
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1rem; font-size: 22px; line-height: 1.35; }
+  h1 { font-size: 28px; margin: 0 0 .5rem; }
+  button { font-size: 26px; padding: .6rem 1.2rem; margin: .5rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: .5rem 0; }
+  th, td { border: 2px solid #333; padding: .4rem; text-align: left; font-size: 24px; }
+  .igual { background: #d7f5d7; }
+  .divergente { background: #ff6b6b; color: #000; font-weight: bold; }
+  .nao_informado { background: #ffe08a; }
+  #veredito { font-size: 30px; font-weight: bold; padding: .6rem; margin: .5rem 0; }
+  #veredito.ok { background: #d7f5d7; }
+  #veredito.alerta { background: #ff6b6b; }
+  #veredito.duvida { background: #ffe08a; }
+  #ua { font-family: monospace; font-size: 18px; word-break: break-all; }
+  #erro { color: #b00020; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Diagnóstico do microfone · engenharia</h1>
+<p id="quem"></p>
+<button id="abrir" hidden>Abrir o microfone e ler</button>
+<div id="veredito" hidden></div>
+<table id="tabela" hidden>
+  <thead><tr><th>bandeira</th><th>pedido</th><th>aplicado</th><th>estado</th></tr></thead>
+  <tbody id="linhas"></tbody>
+</table>
+<ul id="avisos"></ul>
+<p id="formato"></p>
+<p id="ua"></p>
+<p id="quando"></p>
+<p id="erro"></p>
+
+<script type="module">
+import { FLAGS_DE_CAPTURA } from "./captura.js";
+import { podeAbrirDiagnostico, montarDiagnostico, lerAplicado,
+         RECUSA_PARA_PARTICIPANTE, DIVERGENTE, NAO_INFORMADO } from "./diagnostico_microfone.js";
+
+const PESSOA = new URLSearchParams(location.search).get("p") || "";
+const $ = (id) => document.getElementById(id);
+const ROTULO = { igual: "confere", divergente: "DIVERGE", nao_informado: "não informado" };
+
+function mostrar(d) {
+  $("linhas").innerHTML = "";
+  for (const b of d.bandeiras) {
+    const tr = document.createElement("tr");
+    tr.className = b.estado;
+    for (const v of [b.nome, String(b.pedido),
+                     b.aplicado === null ? "—" : String(b.aplicado), ROTULO[b.estado]]) {
+      const td = document.createElement("td");
+      td.textContent = v;
+      tr.appendChild(td);
+    }
+    $("linhas").appendChild(tr);
+  }
+  $("tabela").hidden = false;
+  const v = $("veredito");
+  v.hidden = false;
+  if (d.divergencias) {
+    v.className = "alerta";
+    v.textContent = `${d.divergencias} bandeira(s) DIVERGEM do pedido`;
+  } else if (d.nao_informadas) {
+    v.className = "duvida";
+    v.textContent = `? ${d.nao_informadas} bandeira(s) sem resposta do navegador`;
+  } else {
+    v.className = "ok";
+    v.textContent = "o navegador aplicou as três bandeiras como pedido";
+  }
+  $("avisos").innerHTML = "";
+  for (const a of d.avisos) {
+    const li = document.createElement("li");
+    li.textContent = a;
+    $("avisos").appendChild(li);
+  }
+  $("formato").textContent =
+    `sampleRate da faixa: ${d.sampleRate ?? "não informado"} · ` +
+    `taxa do AudioContext (a do WAV): ${d.taxa_do_contexto ?? "—"} · ` +
+    `channelCount: ${d.channelCount ?? "não informado"} · deviceId: ${d.deviceId}`;
+  $("ua").textContent = "userAgent: " + d.userAgent;
+  $("quando").textContent = "lido em " + new Date().toLocaleString("pt-BR");
+}
+
+async function ler() {
+  $("erro").textContent = "";
+  let fluxo = null, contexto = null;
+  try {
+    fluxo = await navigator.mediaDevices.getUserMedia({ audio: FLAGS_DE_CAPTURA });
+    const Contexto = window.AudioContext || window.webkitAudioContext;
+    contexto = Contexto ? new Contexto() : null;
+    mostrar(montarDiagnostico({
+      pessoa: PESSOA, aplicado: lerAplicado(fluxo),
+      taxaDoContexto: contexto ? contexto.sampleRate : undefined,
+      userAgent: navigator.userAgent,
+    }));
+  } catch (e) {
+    $("erro").textContent = "Não consegui ler o microfone: " + (e && e.message || e);
+  } finally {
+    // nada é gravado: o microfone fecha logo depois da leitura
+    if (fluxo) fluxo.getTracks().forEach((t) => t.stop());
+    if (contexto && contexto.close) contexto.close();
+  }
+}
+
+if (!podeAbrirDiagnostico(PESSOA)) {
+  // recusa antes de qualquer pedido de microfone
+  $("quem").textContent = RECUSA_PARA_PARTICIPANTE;
+} else {
+  $("quem").textContent = "código: " + PESSOA;
+  $("abrir").hidden = false;
+  $("abrir").addEventListener("click", ler);
+}
+</script>
+</body>
+</html>

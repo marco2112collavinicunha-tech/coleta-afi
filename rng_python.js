@@ -1,10 +1,12 @@
 /**
  * MT19937 compatível com o `random` do Python, só o necessário para `shuffle`.
  *
- * A divisão das frases de consistência entre as sessões 3 e 4 é sorteada por
- * participante, de forma determinística, em `src/agenda.py`:
+ * Dois sorteios determinísticos de `src/agenda.py` passam por aqui:
  *
  *     random.Random("{semente_do_sorteio}|{pessoa}").shuffle(ordem)
+ *         divisão das frases de consistência entre as sessões 3 e 4;
+ *     random.Random("{semente_do_sorteio}|{pessoa}|sessao{N}").shuffle(ordem)
+ *         ordem das frases dentro de cada sessão (decisão J4, 02/10).
  *
  * É isso que torna "sorteado" e "pré-registrado" compatíveis: qualquer pessoa
  * com o config e o código reproduz a divisão, sem ninguém ter anotado o resultado.
@@ -25,10 +27,9 @@
  * sorteio. Só o teste de equivalência contra o Python pega.
  * Ver `tests/test_agenda_na_pagina.py`.
  *
- * Caminho reserva, não principal: quando a escolha clínica dos blocos está
- * registrada no config (a fonoaudióloga escolhe), ela tem precedência e este
- * sorteio não roda. Este código serve ao ensaio de engenharia e ao teste, e
- * precisa existir mesmo assim, porque é o ensaio que valida a página.
+ * A divisão dos blocos é caminho reserva: quando a escolha clínica dos blocos
+ * está registrada no config, ela tem precedência e aquele sorteio não roda. A
+ * ordem das frases dentro da sessão roda sempre que há participante.
  */
 
 /** SHA-512 mínimo, porque a semeadura de string do Python passa por ele.

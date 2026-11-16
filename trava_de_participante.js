@@ -2,10 +2,16 @@
  * Trava de participante real.
  *
  * O marcador "[A DEFINIR PELAS FONOAUDIÓLOGAS]" da regra do bloco não pode ir para família
- * real antes de ser trocado. Sem trava, um link com `?p=P001` abriria a sessão com o marcador
- * à vista, com os pictogramas provisórios e sem o subconjunto de consistência declarado, e a
- * família gravaria. Esta função devolve a lista de motivos, em PT-BR, pelos quais a sessão de
- * participante real não pode abrir; lista vazia quer dizer que pode.
+ * real antes de ser trocado (em 07/10/2026 o texto da página passou a trazer os valores
+ * fixados pelo pesquisador: pausa de 1 min entre blocos e limite de 15 min, e o marcador saiu).
+ * Sem trava, um link com `?p=P001` abriria a sessão com pictogramas provisórios e sem o
+ * subconjunto de consistência declarado, e a família gravaria. Enquanto houver entrada em
+ * `coleta.validacao_pendente`, ela segura a sessão (em 07/10/2026, 18h34, o pesquisador deu
+ * pictogramas e subconjunto como validados e as entradas saíram). Em 07/10/2026 à noite o
+ * único motivo que restava era o valor do fim da fala cortada (criterios_da_classe_1); em
+ * 08/10/2026 ele foi fixado em 0,1 s junto com a cauda depois de Parar, e a trava não tem mais
+ * motivo pendente com o protocolo exportado. Esta função devolve a lista de motivos, em PT-BR,
+ * pelos quais a sessão de participante real não pode abrir; lista vazia quer dizer que pode.
  *
  * O pseudônimo de bancada `ENG###` nunca é travado: é com ele que a página é ensaiada enquanto
  * o protocolo está provisório. Qualquer outro pseudônimo (`P###`, com ou sem
@@ -22,10 +28,37 @@ export const MARCADOR_A_DEFINIR = "[A DEFINIR";
 export const PICTOGRAMA_PROVISORIO = "🚧";
 
 /**
+ * O que ainda espera validação das fonoaudiólogas, em `coleta.validacao_pendente` no config
+ * (exportado para o `protocolo.json`). Desde 06/10/2026 os pictogramas são ARASAAC
+ * candidatos e o subconjunto de consistência é proposta: nenhum dos dois tem mais o marcador
+ * "🚧" nem está ausente, então a trava precisa de outro sinal para continuar recusando. Cada
+ * entrada com texto é um motivo; a entrada some do config quando as fonos confirmam.
+ * A trava não decide o que foi validado: só lê o que o config declara pendente.
+ */
+export const VALIDACAO_PENDENTE = {
+  pictogramas: "pictogramas candidatos",
+  subconjunto_consistencia: "subconjunto de consistência aprovado pelo pesquisador, à espera da confirmação de uma fonoaudióloga (coleta.subconjunto_consistencia)",
+};
+
+export function pendenciasDeValidacao(protocolo) {
+  const pendente = ((protocolo && protocolo.coleta) || {}).validacao_pendente;
+  if (pendente == null) return [];
+  // formato inesperado não é "nada pendente": não saber não é "pode"
+  if (typeof pendente !== "object" || Array.isArray(pendente)) return ["(formato ilegível)"];
+  return Object.keys(pendente).filter((k) => {
+    const v = pendente[k];
+    return !(v === null || v === false || (typeof v === "string" && v.trim() === ""));
+  });
+}
+
+/**
  * Critérios técnicos da falha de gravação que ainda não têm valor fixado. Sem eles, a
- * gravação saturada, cortada ou longa demais não teria como ser excluída pela regra
- * declarada, e a coleta começaria com uma regra de exclusão incompleta. Os valores vêm de
+ * gravação saturada ou cortada não teria como ser excluída pela regra declarada, e a
+ * coleta começaria com uma regra de exclusão incompleta. Os valores vêm de
  * `audio.criterios_da_classe_1` no `config.yaml`, exportados para o `protocolo.json`.
+ * Desde 08/10/2026 (decisão do pesquisador, 10h45) a duração máxima não exclui: o valor
+ * marca a gravação para a escuta (src/preprocess.py, `duracao_acima_do_limite`); a trava
+ * continua exigindo que ele seja número, porque o sinal precisa de um limite.
  * A trava não escolhe valor: só exige que cada um seja número (ou um grupo de números,
  * como início e fim da fala cortada).
  */
@@ -50,12 +83,13 @@ export function criteriosDaClasse1SemValor(protocolo) {
 }
 
 /**
- * Ritmo da sessão sem valor fixado: a folga depois da frase-modelo e o intervalo até a
- * próxima frase, em `coleta.ritmo` no config. Os valores são das fonoaudiólogas; a trava
- * só exige que sejam números não negativos.
+ * Ritmo da sessão sem valor fixado: o intervalo mínimo entre uma gravação confirmada e a
+ * próxima frase-modelo, em `coleta.ritmo` no config. O valor é do pesquisador, com validação
+ * das fonoaudiólogas por vir; a trava só exige que seja número não negativo.
+ * Desde 08/10/2026 a folga depois da frase-modelo não existe mais: a família toca em Ouvir e
+ * depois em Gravar, e o intervalo entre os dois é medido, não fixado (captura.js).
  */
 export const RITMO = {
-  folga_apos_modelo_ms: "folga depois da frase-modelo",
   intervalo_ate_proxima_frase_ms: "intervalo até a próxima frase",
 };
 
@@ -84,11 +118,12 @@ export function motivosDaTrava({ pessoa, grupo, textosVisiveis, protocolo,
                                  vozModeloDefinitiva = false }) {
   if (ehEngenharia(pessoa)) return [];
   const motivos = [];
-  // A página toca a frase-modelo, e a única voz que existe é a sintética
-  // provisória dos testes ENG###. Participante real só grava quando a voz
-  // definitiva estiver na página. A origem dela depende da escolha do
-  // pesquisador responsável e, por mexer em procedimento com participante, da
-  // pesquisadora responsável pela ética. Sem o argumento, o padrão é "pendente": não saber não é "pode".
+  // A página toca a frase-modelo. Participante real só grava quando a voz
+  // definitiva estiver na página (desde 07/10/2026 ela está: `voz_modelo/`,
+  // gravada por uma fonoaudióloga da equipe; a página passa `vozModeloDefinitiva`
+  // a partir de ENDERECO_DOS_MODELOS). Sem a voz, só a sintética provisória dos
+  // testes ENG### existe, e o motivo abaixo diz isso. Sem o argumento, o padrão
+  // é "pendente": não saber não é "pode".
   const semVozDefinitiva = () => {
     if (!vozModeloDefinitiva) {
       motivos.push("voz-modelo definitiva pendente (a página só tem a voz sintética "
@@ -117,6 +152,12 @@ export function motivosDaTrava({ pessoa, grupo, textosVisiveis, protocolo,
   if (!Array.isArray(subconjunto) || subconjunto.length === 0) {
     motivos.push("o subconjunto de consistência (coleta.subconjunto_consistencia) não "
       + "está declarado");
+  }
+  const pendencias = pendenciasDeValidacao(protocolo);
+  if (pendencias.length) {
+    motivos.push("aguardando validação das fonoaudiólogas: "
+      + pendencias.map((k) => VALIDACAO_PENDENTE[k] || k).join(", ")
+      + " (coleta.validacao_pendente no config)");
   }
   const semValor = criteriosDaClasse1SemValor(protocolo);
   if (semValor.length) {
